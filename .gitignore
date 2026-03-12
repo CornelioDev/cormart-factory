@@ -23,4 +23,13 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# AI assistants
 .claude/
+CLAUDE.md
+.cursorrules
+.cursor/
+.aider*
+.continue/
+.codeium/
+.github/copilot-instructions.md
+copilot-instructions.md
