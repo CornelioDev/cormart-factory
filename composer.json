@@ -1,9 +1,10 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "cormart/factory",
+    "version": "0.2.0",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Sistema de gestión del Fondo Familiar de Factoring — Cormart Factory.",
+    "keywords": ["laravel", "filament", "factoring"],
     "license": "MIT",
     "require": {
         "php": "^8.2",
