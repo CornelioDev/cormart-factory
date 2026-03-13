@@ -1,59 +1,216 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Cormart Factory
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistema de gestión del Fondo Familiar de Factoring — v0.2.1
 
-## About Laravel
+Cormart Factory es una plataforma web para la administración de un fondo de factoring familiar. Permite gestionar el ciclo completo de financiamientos: desde la solicitud hasta el cobro, el cierre mensual y la distribución de rendimientos entre los miembros del fondo.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Tecnologías
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| Componente | Tecnología |
+|---|---|
+| Framework | Laravel 12 |
+| Panel de administración | Filament 3.3 |
+| Autorización y roles | Spatie Laravel Permission + Filament Shield |
+| Base de datos | MySQL (compatible con SQLite) |
+| Sesiones y caché | Database driver |
+| Estilos | Tailwind CSS (vía Filament) |
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Requisitos
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- PHP 8.2 o superior
+- Composer
+- MySQL 8.x o MariaDB
+- Node.js (solo para compilar assets en desarrollo)
 
-## Laravel Sponsors
+---
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Instalación
 
-### Premium Partners
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/CornelioDev/cormart-factory.git
+cd cormart-factory
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+# 2. Instalar dependencias
+composer install
 
-## Contributing
+# 3. Configurar el entorno
+cp .env.example .env
+php artisan key:generate
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# 4. Configurar la base de datos en .env
+# DB_CONNECTION=mysql
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=cormart_factory
+# DB_USERNAME=root
+# DB_PASSWORD=
 
-## Code of Conduct
+# 5. Ejecutar migraciones y seeders base
+php artisan migrate
+php artisan db:seed --class=RolePermissionsSeeder
+php artisan db:seed --class=ShieldSeeder
+php artisan db:seed --class=ParameterSeeder
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# 6. Crear el enlace de almacenamiento
+php artisan storage:link
 
-## Security Vulnerabilities
+# 7. Crear usuario administrador
+php artisan make:filament-user
+# Luego asignar el rol super_admin desde tinker:
+# php artisan tinker
+# \App\Models\User::where('email','tu@email.com')->first()->assignRole('super_admin');
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+## Estructura del sistema
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Roles
+
+| Rol | Descripción |
+|---|---|
+| `super_admin` | Acceso total. Gestión de parámetros, cierre mensual, usuarios y toda la operación. |
+| `operator` | Gestión operativa: compañías, financiamientos, transacciones, cuentas por cobrar/pagar. |
+| `member` | Acceso de lectura. Ve financiamientos, cierres y widgets del escritorio. |
+| `company_user` | Representante de una compañía. Registra financiamientos y solicitudes de cobro, ve únicamente los datos de su compañía. |
+
+---
+
+### Módulos
+
+#### Operaciones
+
+**Financiamientos**
+Gestión del ciclo de vida completo de cada financiamiento:
+- Estados: `Solicitado → Desembolsado → Cobrado / Cancelado`
+- Código auto-generado con formato `FN000001`
+- Comisión y monto a transferir calculados automáticamente en base a los parámetros del sistema
+- Carga de documentos de soporte (órdenes de compra, facturas)
+- Acciones en lote: desembolsar y cobrar múltiples registros
+
+**Transacciones**
+Registro bancario de desembolsos y cobros:
+- Tipo `Desembolso`: Fondo → Compañía (confirma automáticamente)
+- Tipo `Cobro`: Deudor → Fondo (requiere confirmación de operador cuando lo crea un `company_user`)
+- Vincula uno o más financiamientos de la misma compañía
+- Registra banco, número de transacción y fecha
+- Vista detalle con lista enlazada de financiamientos asociados
+
+**Cuentas por Cobrar**
+Vista de financiamientos desembolsados pendientes de cobro. Incluye antigüedad en días, alerta de vencidos y acción en lote para generar transacciones de cobro.
+
+**Cuentas por Pagar**
+Vista de financiamientos solicitados pendientes de desembolso. Incluye días en espera y acción en lote para generar transacciones de desembolso.
+
+#### Cierre Mensual
+
+Cálculo y ejecución del cierre de distribución mensual:
+
+1. Se selecciona el período (mes/año)
+2. El sistema calcula la distribución basándose en las comisiones cobradas en ese período:
+
+```
+Comisiones del período
+  − Rendimiento fijo  (capital × fixed_return_pct)
+  = Ganancia neta
+  − Reserva           (ganancia × reserve_pct)
+  = Monto post-reserva
+  − Aporte en especie (post-reserva × in_kind_pct)
+  = Disponible para capital
+
+Por cada miembro de capital:
+  Pago fijo         = contribución × fixed_return_pct
+  Pago proporcional = disponible × fund_percentage
+  Total             = fijo + proporcional
+```
+
+3. Se muestra la vista previa antes de confirmar
+4. Al ejecutar se persisten: el cierre, las distribuciones individuales y una instantánea de los parámetros usados (trazabilidad)
+5. Cada período solo puede cerrarse una vez
+
+#### Administración
+
+**Parámetros**
+Ajuste de los parámetros de distribución sin necesidad de modificar código. Todos los cambios quedan registrados en historial con fecha, período y usuario responsable.
+
+| Parámetro | Descripción | Default |
+|---|---|---|
+| `commission_pct` | % de comisión sobre el monto del financiamiento | 5.00% |
+| `fixed_return_pct` | % de rendimiento fijo mensual sobre el capital aportado | 3.00% |
+| `reserve_pct` | % de reserva sobre la ganancia neta | 20.00% |
+| `in_kind_pct` | % del monto post-reserva para el aporte en especie | 50.00% |
+| `default_term_days` | Plazo predeterminado en días para nuevos financiamientos | 15 días |
+
+**Compañías**
+Administración de las empresas clientes del fondo (RNC, contacto, estado activo).
+
+**Clientes (Deudores)**
+Administración de los deudores vinculados a cada compañía.
+
+**Miembros del Fondo**
+Gestión de los miembros del fondo, su tipo (capital o en especie), monto de contribución y porcentaje de participación.
+
+**Usuarios**
+Gestión de cuentas de usuario y asignación de roles.
+
+---
+
+### Modelos principales
+
+| Modelo | Descripción |
+|---|---|
+| `Company` | Compañía cliente del fondo |
+| `Client` | Deudor vinculado a una compañía |
+| `Financing` | Financiamiento (factura u orden de compra) |
+| `FinancingDocument` | Documento de soporte adjunto al financiamiento |
+| `Transaction` | Movimiento bancario (desembolso o cobro) |
+| `FundMember` | Miembro del fondo (capital o en especie) |
+| `Parameter` | Parámetro de configuración del sistema |
+| `ParameterHistory` | Historial de cambios de parámetros |
+| `MonthlyClosing` | Cierre mensual ejecutado |
+| `ClosingDistribution` | Distribución individual por miembro en un cierre |
+| `ClosingParametersSnapshot` | Instantánea de parámetros usados en cada cierre |
+
+---
+
+## Entornos
+
+Se recomienda mantener dos instancias locales:
+
+| Instancia | Propósito |
+|---|---|
+| `cormart-factory` | Desarrollo — datos de prueba, nuevas funcionalidades |
+| `cormart-staging` | Pre-producción — datos reales, validación antes de producción |
+
+Para sincronizar staging con los últimos cambios:
+```bash
+cd cormart-staging
+git pull origin master
+php artisan migrate
+```
+
+---
+
+## Versionamiento
+
+El proyecto sigue [Semantic Versioning](https://semver.org/lang/es/):
+
+- **Mayor** (`x.0.0`): cambios que rompen compatibilidad o rediseño de arquitectura
+- **Menor** (`0.x.0`): nuevas funcionalidades
+- **Parche** (`0.0.x`): correcciones y mejoras menores
+
+Ver el historial de versiones con:
+```bash
+git tag -l
+```
+
+---
+
+## Licencia
+
+Uso privado — Cormart / Familia Cornelio Pérez.
