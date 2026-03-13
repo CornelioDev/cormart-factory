@@ -15,6 +15,10 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ViewAction;
@@ -186,6 +190,113 @@ class TransactionResource extends Resource
                 ->maxLength(500)
                 ->nullable()
                 ->columnSpanFull(),
+        ]);
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            Section::make('Datos de la Transacción')
+                ->columns(3)
+                ->schema([
+                    TextEntry::make('type')
+                        ->label('Tipo')
+                        ->badge()
+                        ->color(fn (string $state): string => match ($state) {
+                            'disbursement' => 'info',
+                            'collection'   => 'success',
+                            default        => 'gray',
+                        })
+                        ->formatStateUsing(fn (string $state): string => match ($state) {
+                            'disbursement' => 'Desembolso',
+                            'collection'   => 'Cobro',
+                            default        => $state,
+                        }),
+
+                    TextEntry::make('status')
+                        ->label('Estado')
+                        ->badge()
+                        ->color(fn (string $state): string => match ($state) {
+                            'pending'   => 'warning',
+                            'confirmed' => 'success',
+                            default     => 'gray',
+                        })
+                        ->formatStateUsing(fn (string $state): string => match ($state) {
+                            'pending'   => 'Pendiente',
+                            'confirmed' => 'Confirmada',
+                            default     => $state,
+                        }),
+
+                    TextEntry::make('company.name')
+                        ->label('Compañía')
+                        ->placeholder('—'),
+
+                    TextEntry::make('amount')
+                        ->label('Monto Total')
+                        ->money('DOP', locale: 'es_DO'),
+
+                    TextEntry::make('bank')
+                        ->label('Banco'),
+
+                    TextEntry::make('transaction_number')
+                        ->label('No. Transacción')
+                        ->copyable(),
+
+                    TextEntry::make('transaction_date')
+                        ->label('Fecha')
+                        ->date('d/m/Y'),
+
+                    TextEntry::make('notes')
+                        ->label('Notas')
+                        ->placeholder('—')
+                        ->columnSpanFull(),
+                ]),
+
+            Section::make('Financiamientos Asociados')
+                ->schema([
+                    RepeatableEntry::make('financings')
+                        ->label('')
+                        ->columns(5)
+                        ->schema([
+                            TextEntry::make('code')
+                                ->label('Código')
+                                ->url(fn (Financing $record): string =>
+                                    FinancingResource::getUrl('edit', ['record' => $record])
+                                )
+                                ->openUrlInNewTab()
+                                ->color('primary')
+                                ->weight(\Filament\Support\Enums\FontWeight::SemiBold),
+
+                            TextEntry::make('client.name')
+                                ->label('Deudor'),
+
+                            TextEntry::make('amount')
+                                ->label('Monto')
+                                ->money('DOP', locale: 'es_DO'),
+
+                            TextEntry::make('commission')
+                                ->label('Comisión')
+                                ->money('DOP', locale: 'es_DO'),
+
+                            TextEntry::make('status')
+                                ->label('Estado')
+                                ->badge()
+                                ->color(fn (string $state): string => match ($state) {
+                                    'solicited'  => 'warning',
+                                    'disbursed'  => 'info',
+                                    'collected'  => 'success',
+                                    'cancelled'  => 'danger',
+                                    default      => 'gray',
+                                })
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                    'solicited'  => 'Solicitado',
+                                    'disbursed'  => 'Desembolsado',
+                                    'collected'  => 'Cobrado',
+                                    'cancelled'  => 'Cancelado',
+                                    default      => $state,
+                                }),
+                        ]),
+                ]),
         ]);
     }
 
