@@ -11,6 +11,11 @@ class CapitalSummaryWidget extends BaseWidget
 {
     protected static ?int $sort = 1;
 
+    public static function canView(): bool
+    {
+        return auth()->user()->hasAnyRole(['super_admin', 'operator', 'member']);
+    }
+
     protected function getStats(): array
     {
         $currentPeriod = now()->format('Y-m');
