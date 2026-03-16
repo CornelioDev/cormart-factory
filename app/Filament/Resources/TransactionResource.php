@@ -315,7 +315,7 @@ class TransactionResource extends Resource
                                 ->color(fn (string $state): string => match ($state) {
                                     'solicited'            => 'warning',
                                     'disbursed'            => 'info',
-                                    'partially_collected'  => 'purple',
+                                    'partially_collected'  => 'primary',
                                     'collected'            => 'success',
                                     'cancelled'            => 'danger',
                                     default                => 'gray',

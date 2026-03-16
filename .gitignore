@@ -26,6 +26,7 @@ Thumbs.db
 # AI assistants
 .claude/
 CLAUDE.md
+/docs
 .cursorrules
 .cursor/
 .aider*

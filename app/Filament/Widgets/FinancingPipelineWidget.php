@@ -43,7 +43,7 @@ class FinancingPipelineWidget extends BaseWidget
 
             Stat::make('Abonados', $partialCollected->count())
                 ->description('RD$ ' . number_format((float) $partialCollected->selectRaw('SUM(amount - collected_amount) as pending')->value('pending'), 2, '.', ',') . ' pendiente')
-                ->color('purple')
+                ->color('primary')
                 ->icon('heroicon-o-arrow-path'),
 
             Stat::make('Cobrados · ' . now()->translatedFormat('M Y'), $collected->count())
