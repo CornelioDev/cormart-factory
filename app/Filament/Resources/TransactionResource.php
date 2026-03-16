@@ -356,6 +356,8 @@ class TransactionResource extends Resource
                 TextColumn::make('financings.client.name')
                     ->label('Deudor')
                     ->searchable()
+                    ->limit(20)
+                    ->tooltip(fn ($record): ?string => $record->financings->pluck('client.name')->join(', '))
                     ->placeholder('—'),
 
                 TextColumn::make('amount')
