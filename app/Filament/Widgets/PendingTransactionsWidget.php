@@ -32,6 +32,11 @@ class PendingTransactionsWidget extends BaseWidget
                     ->orderBy('transaction_date')
             )
             ->columns([
+                TextColumn::make('code')
+                    ->label('Código')
+                    ->fontFamily('mono')
+                    ->sortable(),
+
                 TextColumn::make('company.name')
                     ->label('Compañía')
                     ->searchable(),

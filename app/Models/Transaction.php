@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Transaction extends Model
 {
     protected $fillable = [
+        'code',
         'type',
         'status',
         'amount',
@@ -27,6 +28,15 @@ class Transaction extends Model
         'transaction_date' => 'date',
         'confirmed_at'     => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (Transaction $transaction) {
+            $transaction->updateQuietly([
+                'code' => 'TX' . str_pad($transaction->id, 6, '0', STR_PAD_LEFT),
+            ]);
+        });
+    }
 
     public function company(): BelongsTo
     {

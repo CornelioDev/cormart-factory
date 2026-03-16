@@ -6,6 +6,7 @@ use App\Filament\Resources\FinancingResource\Pages;
 use App\Models\Client;
 use App\Models\Financing;
 use App\Models\Parameter;
+use App\Models\Transaction;
 use App\Services\FinancingService;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
@@ -376,8 +377,14 @@ class FinancingResource extends Resource
                         ->label('')
                         ->columns(6)
                         ->schema([
-                            TextEntry::make('id')
-                                ->label('#'),
+                            TextEntry::make('code')
+                                ->label('Código')
+                                ->fontFamily('mono')
+                                ->url(fn (Transaction $record): string =>
+                                    TransactionResource::getUrl('view', ['record' => $record])
+                                )
+                                ->color('primary')
+                                ->weight(\Filament\Support\Enums\FontWeight::SemiBold),
 
                             TextEntry::make('type')
                                 ->label('Tipo')

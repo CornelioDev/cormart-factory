@@ -230,6 +230,11 @@ class TransactionResource extends Resource
             Section::make('Datos de la Transacción')
                 ->columns(3)
                 ->schema([
+                    TextEntry::make('code')
+                        ->label('Código')
+                        ->fontFamily('mono')
+                        ->copyable(),
+
                     TextEntry::make('type')
                         ->label('Tipo')
                         ->badge()
@@ -338,39 +343,20 @@ class TransactionResource extends Resource
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('id')
-                    ->label('#')
-                    ->sortable(),
-
-                TextColumn::make('type')
-                    ->label('Tipo')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'disbursement' => 'info',
-                        'collection'   => 'success',
-                    })
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'disbursement' => 'Desembolso',
-                        'collection'   => 'Cobro',
-                    }),
-
-                TextColumn::make('status')
-                    ->label('Estado')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'pending'   => 'warning',
-                        'confirmed' => 'success',
-                    })
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'pending'   => 'Pendiente',
-                        'confirmed' => 'Confirmada',
-                    }),
-
-                TextColumn::make('company.name')
-                    ->label('Compañía')
-                    ->placeholder('—')
+                TextColumn::make('code')
+                    ->label('Código')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->fontFamily('mono')
+                    ->url(fn (Transaction $record): string =>
+                        static::getUrl('view', ['record' => $record])
+                    )
+                    ->color('primary'),
+
+                TextColumn::make('financings.client.name')
+                    ->label('Deudor')
+                    ->searchable()
+                    ->placeholder('—'),
 
                 TextColumn::make('amount')
                     ->label('Monto')
@@ -391,10 +377,17 @@ class TransactionResource extends Resource
                     ->date('d M Y')
                     ->sortable(),
 
-                TextColumn::make('financings_count')
-                    ->label('Financiamientos')
-                    ->counts('financings')
-                    ->sortable(),
+                TextColumn::make('type')
+                    ->label('Tipo')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'disbursement' => 'info',
+                        'collection'   => 'success',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'disbursement' => 'Desembolso',
+                        'collection'   => 'Cobro',
+                    }),
             ])
             ->filters([
                 SelectFilter::make('type')
@@ -412,8 +405,6 @@ class TransactionResource extends Resource
                     ]),
             ])
             ->actions([
-                ViewAction::make(),
-
                 Action::make('confirm')
                     ->label('Confirmar cobro')
                     ->icon('heroicon-o-check-badge')
