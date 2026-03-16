@@ -1,0 +1,35 @@
+<?php
+
+namespace Tests;
+
+use App\Models\Parameter;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
+abstract class ServiceTestCase extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    protected function seedParameters(): void
+    {
+        Parameter::insert([
+            ['key' => 'commission_pct',    'value' => 5.0,  'description' => 'Comisión por factura (%)'],
+            ['key' => 'fixed_return_pct',  'value' => 3.0,  'description' => 'Rendimiento fijo mensual (%)'],
+            ['key' => 'reserve_pct',       'value' => 20.0, 'description' => 'Reserva sobre ganancia neta (%)'],
+            ['key' => 'in_kind_pct',       'value' => 50.0, 'description' => 'Porcentaje post-reserva para naturaleza (%)'],
+            ['key' => 'default_term_days', 'value' => 15.0, 'description' => 'Plazo estándar en días'],
+        ]);
+    }
+
+    protected function createRole(string $name): Role
+    {
+        return Role::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+    }
+}
