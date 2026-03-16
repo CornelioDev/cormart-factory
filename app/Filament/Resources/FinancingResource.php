@@ -18,11 +18,16 @@ use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -230,6 +235,195 @@ class FinancingResource extends Resource
         ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            Section::make('Datos del Financiamiento')
+                ->columns(3)
+                ->schema([
+                    TextEntry::make('code')
+                        ->label('Código')
+                        ->fontFamily('mono')
+                        ->copyable(),
+
+                    TextEntry::make('status')
+                        ->label('Estado')
+                        ->badge()
+                        ->color(fn (string $state): string => match ($state) {
+                            'solicited'           => 'warning',
+                            'disbursed'           => 'info',
+                            'partially_collected' => 'primary',
+                            'collected'           => 'success',
+                            'cancelled'           => 'danger',
+                            default               => 'gray',
+                        })
+                        ->formatStateUsing(fn (string $state): string => match ($state) {
+                            'solicited'           => 'Solicitado',
+                            'disbursed'           => 'Desembolsado',
+                            'partially_collected' => 'Abonado',
+                            'collected'           => 'Cobrado',
+                            'cancelled'           => 'Cancelado',
+                            default               => $state,
+                        }),
+
+                    TextEntry::make('company.name')
+                        ->label('Compañía'),
+
+                    TextEntry::make('client.name')
+                        ->label('Deudor'),
+
+                    TextEntry::make('amount')
+                        ->label('Monto')
+                        ->money('DOP', locale: 'es_DO'),
+
+                    TextEntry::make('commission')
+                        ->label('Comisión')
+                        ->money('DOP', locale: 'es_DO'),
+
+                    TextEntry::make('transfer_amount')
+                        ->label('Monto a Transferir')
+                        ->money('DOP', locale: 'es_DO'),
+
+                    TextEntry::make('collected_amount')
+                        ->label('Monto Cobrado')
+                        ->money('DOP', locale: 'es_DO')
+                        ->visible(fn (Financing $record): bool => (float) $record->collected_amount > 0),
+
+                    TextEntry::make('remaining_balance')
+                        ->label('Pendiente de Cobro')
+                        ->state(fn (Financing $record): string =>
+                            'RD$ ' . number_format($record->remainingBalance(), 2, '.', ',')
+                        )
+                        ->color('danger')
+                        ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                        ->visible(fn (Financing $record): bool => $record->status === 'partially_collected'),
+
+                    TextEntry::make('term_days')
+                        ->label('Plazo')
+                        ->suffix(' días'),
+
+                    TextEntry::make('request_date')
+                        ->label('Fecha de Solicitud')
+                        ->date('d/m/Y'),
+
+                    TextEntry::make('due_date')
+                        ->label('Fecha de Vencimiento')
+                        ->date('d/m/Y'),
+
+                    TextEntry::make('issue_period')
+                        ->label('Período de Emisión')
+                        ->placeholder('—'),
+
+                    TextEntry::make('collection_period')
+                        ->label('Período de Cobro')
+                        ->placeholder('—'),
+
+                    TextEntry::make('disbursed_at')
+                        ->label('Fecha de Desembolso')
+                        ->date('d/m/Y')
+                        ->placeholder('—'),
+
+                    TextEntry::make('collected_at')
+                        ->label('Fecha de Cobro')
+                        ->date('d/m/Y')
+                        ->placeholder('—'),
+
+                    TextEntry::make('cancellation_reason')
+                        ->label('Motivo de Cancelación')
+                        ->visible(fn (Financing $record): bool => $record->status === 'cancelled')
+                        ->columnSpanFull(),
+
+                    TextEntry::make('registeredBy.name')
+                        ->label('Registrado por')
+                        ->placeholder('—'),
+                ]),
+
+            Section::make('Documentos')
+                ->schema([
+                    RepeatableEntry::make('documents')
+                        ->label('')
+                        ->columns(4)
+                        ->schema([
+                            TextEntry::make('type')
+                                ->label('Tipo')
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                    'purchase_order' => 'Orden de Compra',
+                                    'invoice'        => 'Factura',
+                                    default          => $state,
+                                }),
+
+                            TextEntry::make('document_number')
+                                ->label('Número')
+                                ->placeholder('—'),
+
+                            TextEntry::make('document_date')
+                                ->label('Fecha')
+                                ->date('d/m/Y')
+                                ->placeholder('—'),
+
+                            TextEntry::make('file_path')
+                                ->label('Adjunto')
+                                ->url(fn ($state): ?string => $state ? asset('storage/' . $state) : null)
+                                ->openUrlInNewTab()
+                                ->formatStateUsing(fn ($state): string => $state ? 'Ver archivo' : '—')
+                                ->color('primary'),
+                        ]),
+                ]),
+
+            Section::make('Transacciones Asociadas')
+                ->schema([
+                    RepeatableEntry::make('transactions')
+                        ->label('')
+                        ->columns(6)
+                        ->schema([
+                            TextEntry::make('id')
+                                ->label('#'),
+
+                            TextEntry::make('type')
+                                ->label('Tipo')
+                                ->badge()
+                                ->color(fn (string $state): string => match ($state) {
+                                    'disbursement' => 'info',
+                                    'collection'   => 'success',
+                                    default        => 'gray',
+                                })
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                    'disbursement' => 'Desembolso',
+                                    'collection'   => 'Cobro',
+                                    default        => $state,
+                                }),
+
+                            TextEntry::make('status')
+                                ->label('Estado')
+                                ->badge()
+                                ->color(fn (string $state): string => match ($state) {
+                                    'pending'   => 'warning',
+                                    'confirmed' => 'success',
+                                    default     => 'gray',
+                                })
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                    'pending'   => 'Pendiente',
+                                    'confirmed' => 'Confirmada',
+                                    default     => $state,
+                                }),
+
+                            TextEntry::make('amount')
+                                ->label('Monto')
+                                ->money('DOP', locale: 'es_DO'),
+
+                            TextEntry::make('transaction_number')
+                                ->label('No. Transacción')
+                                ->copyable()
+                                ->placeholder('—'),
+
+                            TextEntry::make('transaction_date')
+                                ->label('Fecha')
+                                ->date('d/m/Y'),
+                        ]),
+                ]),
+        ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -239,8 +433,11 @@ class FinancingResource extends Resource
                     ->label('N° Financiamiento')
                     ->searchable()
                     ->sortable()
-                    ->copyable()
-                    ->fontFamily('mono'),
+                    ->fontFamily('mono')
+                    ->url(fn (Financing $record): string =>
+                        static::getUrl('view', ['record' => $record])
+                    )
+                    ->color('primary'),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
@@ -324,6 +521,8 @@ class FinancingResource extends Resource
                         ]);
                     }),
 
+                ViewAction::make(),
+
                 EditAction::make()
                     ->visible(fn (Financing $record): bool => $record->status === 'solicited'),
             ])
@@ -403,6 +602,7 @@ class FinancingResource extends Resource
         return [
             'index'  => Pages\ListFinancings::route('/'),
             'create' => Pages\CreateFinancing::route('/create'),
+            'view'   => Pages\ViewFinancing::route('/{record}'),
             'edit'   => Pages\EditFinancing::route('/{record}/edit'),
         ];
     }

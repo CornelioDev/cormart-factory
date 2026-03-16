@@ -292,7 +292,7 @@ class TransactionResource extends Resource
                             TextEntry::make('code')
                                 ->label('Código')
                                 ->url(fn (Financing $record): string =>
-                                    FinancingResource::getUrl('edit', ['record' => $record])
+                                    FinancingResource::getUrl('view', ['record' => $record])
                                 )
                                 ->openUrlInNewTab()
                                 ->color('primary')
