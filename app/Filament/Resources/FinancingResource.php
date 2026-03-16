@@ -276,26 +276,29 @@ class FinancingResource extends Resource
                     ->label('Estado')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'solicited' => 'warning',
-                        'disbursed' => 'info',
-                        'collected' => 'success',
-                        'cancelled' => 'danger',
+                        'solicited'           => 'warning',
+                        'disbursed'           => 'info',
+                        'partially_collected' => 'purple',
+                        'collected'           => 'success',
+                        'cancelled'           => 'danger',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'solicited' => 'Solicitado',
-                        'disbursed' => 'Desembolsado',
-                        'collected' => 'Cobrado',
-                        'cancelled' => 'Cancelado',
+                        'solicited'           => 'Solicitado',
+                        'disbursed'           => 'Desembolsado',
+                        'partially_collected' => 'Abonado',
+                        'collected'           => 'Cobrado',
+                        'cancelled'           => 'Cancelado',
                     }),
             ])
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options([
-                        'solicited' => 'Solicitado',
-                        'disbursed' => 'Desembolsado',
-                        'collected' => 'Cobrado',
-                        'cancelled' => 'Cancelado',
+                        'solicited'           => 'Solicitado',
+                        'disbursed'           => 'Desembolsado',
+                        'partially_collected' => 'Abonado',
+                        'collected'           => 'Cobrado',
+                        'cancelled'           => 'Cancelado',
                     ]),
 
                 SelectFilter::make('company_id')
@@ -307,7 +310,7 @@ class FinancingResource extends Resource
                     ->label('Cancelar')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (Financing $record): bool => in_array($record->status, ['solicited', 'disbursed']))
+                    ->visible(fn (Financing $record): bool => in_array($record->status, ['solicited', 'disbursed', 'partially_collected']))
                     ->form([
                         Textarea::make('cancellation_reason')
                             ->label('Motivo de Cancelación')
@@ -376,10 +379,11 @@ class FinancingResource extends Resource
                             return;
                         }
 
-                        if ($statuses->count() > 1 || $statuses->first() !== 'disbursed') {
+                        $allowedForCollection = ['disbursed', 'partially_collected'];
+                        if ($statuses->diff($allowedForCollection)->isNotEmpty()) {
                             Notification::make()
                                 ->title('Selección inválida')
-                                ->body('Todos los financiamientos deben estar en estado "Desembolsado".')
+                                ->body('Todos los financiamientos deben estar en estado "Desembolsado" o "Abonado".')
                                 ->danger()
                                 ->send();
                             return;

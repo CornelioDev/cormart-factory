@@ -31,15 +31,14 @@ class ClientService
 
     public function getStats(Client $client): array
     {
-        $financings = $client->financings();
-
         return [
-            'total_financings'  => $financings->count(),
-            'total_amount'      => $financings->sum('amount'),
-            'total_commissions' => $financings->sum('commission'),
-            'collected'         => $financings->where('status', 'collected')->count(),
-            'disbursed'         => $financings->where('status', 'disbursed')->count(),
-            'solicited'         => $financings->where('status', 'solicited')->count(),
+            'total_financings'      => $client->financings()->count(),
+            'total_amount'          => $client->financings()->sum('amount'),
+            'total_commissions'     => $client->financings()->sum('commission'),
+            'collected'             => $client->financings()->where('status', 'collected')->count(),
+            'partially_collected'   => $client->financings()->where('status', 'partially_collected')->count(),
+            'disbursed'             => $client->financings()->where('status', 'disbursed')->count(),
+            'solicited'             => $client->financings()->where('status', 'solicited')->count(),
         ];
     }
 }

@@ -26,7 +26,7 @@ class ActiveFinancingsWidget extends BaseWidget
         $companyId = $user->hasRole('company_user') ? $user->company_id : null;
 
         $query = Financing::query()
-            ->where('status', 'disbursed')
+            ->whereIn('status', ['disbursed', 'partially_collected'])
             ->orderBy('due_date');
 
         if ($companyId) {

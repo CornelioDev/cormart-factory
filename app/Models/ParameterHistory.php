@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ParameterHistory extends Model
 {
+    protected $table = 'parameters_history';
+
     protected $fillable = [
         'parameter_id',
         'key',

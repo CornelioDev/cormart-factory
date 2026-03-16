@@ -118,12 +118,14 @@ class TransactionResource extends Resource
                         return [];
                     }
 
-                    $status = $type === 'disbursement' ? 'solicited' : 'disbursed';
+                    $statuses = $type === 'disbursement'
+                        ? ['solicited']
+                        : ['disbursed', 'partially_collected'];
 
                     $query = Financing::query()
                         ->where('company_id', $companyId)
-                        ->where(function ($q) use ($status, $qFinancingIds) {
-                            $q->where('status', $status);
+                        ->where(function ($q) use ($statuses, $qFinancingIds) {
+                            $q->whereIn('status', $statuses);
                             if (! empty($qFinancingIds)) {
                                 $q->orWhereIn('id', $qFinancingIds);
                             }
@@ -132,37 +134,66 @@ class TransactionResource extends Resource
                     return $query->with('client')->get()
                         ->mapWithKeys(fn (Financing $f): array => [
                             $f->id => sprintf(
-                                '%s — %s — RD$ %s',
+                                '%s — %s — RD$ %s%s',
                                 $f->code ?? ('FN' . str_pad($f->id, 6, '0', STR_PAD_LEFT)),
                                 $f->client->name,
-                                number_format($f->amount, 2, '.', ',')
+                                number_format($f->amount, 2, '.', ','),
+                                $f->collected_amount > 0
+                                    ? ' (Pendiente: RD$ ' . number_format($f->remainingBalance(), 2, '.', ',') . ')'
+                                    : ''
                             ),
                         ])
                         ->toArray();
                 })
                 ->afterStateUpdated(function (Get $get, Set $set, array $state): void {
-                    $type   = $get('type');
-                    $amount = (new TransactionService())->calculateAmount($type ?? '', $state);
-                    $set('amount', $amount > 0 ? number_format($amount, 2, '.', ',') : null);
+                    $type = $get('type');
+                    if ($type === 'collection') {
+                        $remaining = (new TransactionService())->calculateRemainingBalance($state);
+                        $set('amount', $remaining > 0 ? number_format($remaining, 2, '.', ',') : null);
+                    } else {
+                        $amount = (new TransactionService())->calculateAmount($type ?? '', $state);
+                        $set('amount', $amount > 0 ? number_format($amount, 2, '.', ',') : null);
+                    }
                 })
                 ->helperText('Selecciona el tipo y la compañía primero')
                 ->columnSpanFull(),
 
-            // ── Monto calculado ──────────────────────────────────────────────
+            // ── Balance pendiente (solo para cobros) ───────────────────────
+            Placeholder::make('remaining_balance')
+                ->label('Balance Pendiente')
+                ->content(function (Get $get): string {
+                    $ids = $get('financing_ids') ?? [];
+                    if (empty($ids) || $get('type') !== 'collection') {
+                        return '—';
+                    }
+                    $remaining = (new TransactionService())->calculateRemainingBalance($ids);
+                    return 'RD$ ' . number_format($remaining, 2, '.', ',');
+                })
+                ->visible(fn (Get $get): bool => $get('type') === 'collection'),
+
+            // ── Monto ──────────────────────────────────────────────────────
             TextInput::make('amount')
-                ->label('Monto Total')
+                ->label(fn (Get $get) => $get('type') === 'collection' ? 'Monto a Cobrar' : 'Monto Total')
                 ->prefix('RD$')
-                ->disabled()
+                ->required()
+                ->numeric()
+                ->step(0.01)
+                ->disabled(fn (Get $get): bool => $get('type') !== 'collection')
                 ->dehydrated()
                 ->default(function () use ($qType, $qFinancingIds): ?string {
                     if (! $qType || empty($qFinancingIds)) {
                         return null;
                     }
-                    $amount = (new TransactionService())->calculateAmount($qType, $qFinancingIds);
+                    if ($qType === 'collection') {
+                        $amount = (new TransactionService())->calculateRemainingBalance($qFinancingIds);
+                    } else {
+                        $amount = (new TransactionService())->calculateAmount($qType, $qFinancingIds);
+                    }
                     return $amount > 0 ? number_format($amount, 2, '.', ',') : null;
                 })
                 ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
-                ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null),
+                ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null)
+                ->helperText(fn (Get $get) => $get('type') === 'collection' ? 'Puede ingresar un monto parcial (abono) o el total' : null),
 
             // ── Datos bancarios ──────────────────────────────────────────────
             Select::make('bank')
@@ -282,18 +313,20 @@ class TransactionResource extends Resource
                                 ->label('Estado')
                                 ->badge()
                                 ->color(fn (string $state): string => match ($state) {
-                                    'solicited'  => 'warning',
-                                    'disbursed'  => 'info',
-                                    'collected'  => 'success',
-                                    'cancelled'  => 'danger',
-                                    default      => 'gray',
+                                    'solicited'            => 'warning',
+                                    'disbursed'            => 'info',
+                                    'partially_collected'  => 'purple',
+                                    'collected'            => 'success',
+                                    'cancelled'            => 'danger',
+                                    default                => 'gray',
                                 })
                                 ->formatStateUsing(fn (string $state): string => match ($state) {
-                                    'solicited'  => 'Solicitado',
-                                    'disbursed'  => 'Desembolsado',
-                                    'collected'  => 'Cobrado',
-                                    'cancelled'  => 'Cancelado',
-                                    default      => $state,
+                                    'solicited'            => 'Solicitado',
+                                    'disbursed'            => 'Desembolsado',
+                                    'partially_collected'  => 'Abonado',
+                                    'collected'            => 'Cobrado',
+                                    'cancelled'            => 'Cancelado',
+                                    default                => $state,
                                 }),
                         ]),
                 ]),

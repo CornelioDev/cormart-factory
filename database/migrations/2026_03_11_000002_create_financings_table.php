@@ -24,7 +24,7 @@ return new class extends Migration
             $table->date('due_date')->nullable();
 
             // Estado
-            $table->enum('status', ['solicited', 'disbursed', 'collected', 'cancelled'])
+            $table->enum('status', ['solicited', 'disbursed', 'partially_collected', 'collected', 'cancelled'])
                   ->default('solicited');
             $table->string('cancellation_reason')->nullable();
 

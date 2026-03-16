@@ -11,19 +11,22 @@ class TransactionService
 {
     /**
      * Crea una transacción y la vincula a los financiamientos indicados.
-     * El monto se calcula automáticamente:
-     *   - disbursement: suma de transfer_amount (lo que el fondo entrega)
-     *   - collection:   suma de amount          (lo que el deudor devuelve)
+     *
+     * Para desembolsos: monto = suma de transfer_amount.
+     * Para cobros: monto puede ser el total (cobro completo) o un monto parcial (abono).
+     *   - Si $data['amount'] ya viene definido, se usa ese monto (abono parcial).
+     *   - Si no, se calcula desde los financiamientos (cobro completo).
      */
     public function create(array $data, array $financingIds): Transaction
     {
         return DB::transaction(function () use ($data, $financingIds) {
             $financings = Financing::whereIn('id', $financingIds)->get();
 
-            // Monto calculado desde los financiamientos (fuente de verdad)
-            $data['amount'] = $data['type'] === 'disbursement'
-                ? $financings->sum('transfer_amount')
-                : $financings->sum('amount');
+            if ($data['type'] === 'disbursement') {
+                $data['amount'] = $financings->sum('transfer_amount');
+            } elseif (! isset($data['amount']) || $data['amount'] === null) {
+                $data['amount'] = $financings->sum('amount');
+            }
 
             // Para cobros, la compañía siempre viene de los financiamientos
             if ($data['type'] === 'collection') {
@@ -53,11 +56,25 @@ class TransactionService
                 ]));
             } elseif ($data['type'] === 'collection') {
                 $date = Carbon::parse($data['transaction_date']);
-                $financings->each(fn (Financing $f) => $f->update([
-                    'status'            => 'collected',
-                    'collected_at'      => $date,
-                    'collection_period' => $date->format('Y-m'),
-                ]));
+                $transactionAmount = (float) $data['amount'];
+
+                $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings) {
+                    // Distribuir monto proporcionalmente si hay múltiples financiamientos
+                    $totalRemaining = $financings->sum(fn ($fin) => $fin->remainingBalance());
+                    $paymentForThis = $financings->count() === 1
+                        ? $transactionAmount
+                        : round($transactionAmount * ($f->remainingBalance() / max($totalRemaining, 0.01)), 2);
+
+                    $newCollected = round((float) $f->collected_amount + $paymentForThis, 2);
+                    $isFullyPaid  = $newCollected >= (float) $f->amount;
+
+                    $f->update([
+                        'collected_amount'  => min($newCollected, (float) $f->amount),
+                        'status'            => $isFullyPaid ? 'collected' : 'partially_collected',
+                        'collected_at'      => $isFullyPaid ? $date : null,
+                        'collection_period' => $isFullyPaid ? $date->format('Y-m') : null,
+                    ]);
+                });
             }
 
             return $transaction;
@@ -96,5 +113,19 @@ class TransactionService
         return $type === 'disbursement'
             ? (float) $financings->sum('transfer_amount')
             : (float) $financings->sum('amount');
+    }
+
+    /**
+     * Calcula el balance pendiente de cobro para una lista de financiamientos.
+     */
+    public function calculateRemainingBalance(array $financingIds): float
+    {
+        if (empty($financingIds)) {
+            return 0.0;
+        }
+
+        $financings = Financing::whereIn('id', $financingIds)->get();
+
+        return (float) $financings->sum(fn (Financing $f) => $f->remainingBalance());
     }
 }

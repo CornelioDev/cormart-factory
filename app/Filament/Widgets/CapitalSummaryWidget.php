@@ -24,9 +24,10 @@ class CapitalSummaryWidget extends BaseWidget
             ->where('active', true)
             ->sum('contribution');
 
-        // Capital "en calle" = dinero desembolsado pendiente de cobro
-        $capitalInStreet = Financing::where('status', 'disbursed')
-            ->sum('transfer_amount');
+        // Capital "en calle" = dinero desembolsado pendiente de cobro (neto de abonos)
+        $capitalInStreet = (float) Financing::whereIn('status', ['disbursed', 'partially_collected'])
+            ->selectRaw('SUM(transfer_amount - collected_amount) as pending')
+            ->value('pending');
 
         $availableCapital = $totalCapital - $capitalInStreet;
 
@@ -38,10 +39,10 @@ class CapitalSummaryWidget extends BaseWidget
             ->where('collection_period', $currentPeriod)
             ->count();
 
-        $pendingCommissions = Financing::where('status', 'disbursed')
+        $pendingCommissions = Financing::whereIn('status', ['disbursed', 'partially_collected'])
             ->sum('commission');
 
-        $disbursedCount = Financing::where('status', 'disbursed')->count();
+        $disbursedCount = Financing::whereIn('status', ['disbursed', 'partially_collected'])->count();
 
         $projectedCommissions = $commissionsThisMonth + $pendingCommissions;
 

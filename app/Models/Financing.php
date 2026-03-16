@@ -19,6 +19,7 @@ class Financing extends Model
         'amount',
         'commission',
         'transfer_amount',
+        'collected_amount',
         'term_days',
         'request_date',
         'due_date',
@@ -32,13 +33,14 @@ class Financing extends Model
     ];
 
     protected $casts = [
-        'amount'          => 'decimal:2',
-        'commission'      => 'decimal:2',
-        'transfer_amount' => 'decimal:2',
-        'request_date'    => 'date',
-        'due_date'        => 'date',
-        'disbursed_at'    => 'date',
-        'collected_at'    => 'date',
+        'amount'           => 'decimal:2',
+        'commission'       => 'decimal:2',
+        'transfer_amount'  => 'decimal:2',
+        'collected_amount' => 'decimal:2',
+        'request_date'     => 'date',
+        'due_date'         => 'date',
+        'disbursed_at'     => 'date',
+        'collected_at'     => 'date',
     ];
 
     protected static function booted(): void
@@ -74,5 +76,10 @@ class Financing extends Model
     {
         return $this->belongsToMany(Transaction::class, 'transaction_financings')
                     ->withTimestamps();
+    }
+
+    public function remainingBalance(): float
+    {
+        return round((float) $this->amount - (float) $this->collected_amount, 2);
     }
 }
