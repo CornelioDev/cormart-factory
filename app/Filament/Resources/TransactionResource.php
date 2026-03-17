@@ -176,8 +176,7 @@ class TransactionResource extends Resource
                 ->label(fn (Get $get) => $get('type') === 'collection' ? 'Monto a Cobrar' : 'Monto Total')
                 ->prefix('RD$')
                 ->required()
-                ->numeric()
-                ->step(0.01)
+                ->inputMode('decimal')
                 ->disabled(fn (Get $get): bool => $get('type') !== 'collection')
                 ->dehydrated()
                 ->default(function () use ($qType, $qFinancingIds): ?string {
