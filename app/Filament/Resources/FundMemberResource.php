@@ -46,10 +46,12 @@ class FundMemberResource extends Resource
 
             TextInput::make('contribution')
                 ->label('Aportación')
-                ->numeric()
+                ->inputMode('decimal')
                 ->prefix('RD$')
                 ->required()
-                ->visible(fn ($get) => $get('type') === 'capital'),
+                ->visible(fn ($get) => $get('type') === 'capital')
+                ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
+                ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null),
 
             TextInput::make('fund_percentage')
                 ->label('% del Fondo')

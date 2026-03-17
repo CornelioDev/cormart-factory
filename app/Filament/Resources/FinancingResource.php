@@ -147,12 +147,13 @@ class FinancingResource extends Resource
             TextInput::make('amount')
                 ->label('Monto a Financiar')
                 ->required()
-                ->numeric()
-                ->step(0.01)
+                ->inputMode('decimal')
                 ->prefix('RD$')
                 ->live(onBlur: true)
+                ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
+                ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null)
                 ->afterStateUpdated(function (Get $get, Set $set, $state) {
-                    $amount = (float) $state;
+                    $amount = (float) str_replace(',', '', $state);
                     $service = new FinancingService();
                     $commission = $service->calculateCommission($amount);
                     $transferAmount = $service->calculateTransferAmount($amount, $commission);
