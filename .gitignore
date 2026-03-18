@@ -23,10 +23,8 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
-# AI assistants
-.claude/
-CLAUDE.md
-/docs
+# AI assistants (machine-specific)
+.claude/settings.local.json
 .cursorrules
 .cursor/
 .aider*

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan:*)",
+      "Bash(git status:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git rebase:*)",
+      "Bash(git clone:*)",
+      "Bash(git reset:*)",
+      "Bash(git --version)",
+      "Bash(git config:*)",
+      "Bash(gh --version)"
+    ]
+  }
+}

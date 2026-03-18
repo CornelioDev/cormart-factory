@@ -1,0 +1,191 @@
+# CLAUDE.md — Cormart Factory
+
+Archivo de contexto para Claude Code. Léelo completo antes de tocar cualquier archivo.
+
+---
+
+## Proyecto
+
+Sistema de gestión del Fondo Familiar de Factoring — Cormart Factory.
+Stack: **Laravel 12 + Filament 3 + MySQL + Filament Shield (Spatie Permission)**.
+Idioma de UI: **Español**. Código fuente: **Inglés**. Moneda: **RD$ (Peso Dominicano)**.
+
+Repositorio: https://github.com/CornelioDev/cormart-factory
+
+---
+
+## Estado actual: v0.4.1
+
+El sistema está completamente operativo. Se mantienen dos instancias locales:
+
+| Instancia | BD | Propósito |
+|---|---|---|
+| Desarrollo | `cormart_factory` | Nuevas funcionalidades, datos de prueba |
+| Pre-producción | `cormart_staging` | Datos reales, QA |
+
+---
+
+## Roles
+
+| Rol | Descripción |
+|---|---|
+| `super_admin` | Acceso total. Cierre mensual, parámetros, usuarios. |
+| `operator` | Operaciones: financiamientos, transacciones, cuentas por cobrar/pagar. |
+| `member` | Solo lectura: financiamientos, cierres, widgets del dashboard. |
+| `company_user` | Externo. Ve **solo** datos de su compañía. No accede a datos del fondo. |
+
+---
+
+## Arquitectura de modelos
+
+```
+Fondo
+  └── FundMember (tipo: capital | in_kind)
+  └── Company (cliente del fondo)
+        └── Client (deudor de la compañía)
+              └── Financing (código: FN000001)
+                    ├── FinancingDocument (OC o factura, adjunto)
+                    └── Transaction (via pivot TransactionFinancing)
+  └── Transaction (tipo: disbursement | collection)
+  └── MonthlyClosing
+        ├── ClosingDistribution (por miembro)
+        └── ClosingParametersSnapshot (auditoría de parámetros)
+  └── Parameter (configuración dinámica)
+        └── ParameterHistory (auditoría de cambios)
+```
+
+### Estados de Financing
+```
+solicited → disbursed → partially_collected → collected
+    ↓            ↓              ↓
+ cancelled    cancelled     cancelled  (cancellation_reason obligatorio)
+```
+
+- `partially_collected`: El financiamiento ha recibido abonos parciales pero no se ha completado el cobro total.
+- `collected_amount`: Campo decimal que acumula el monto cobrado. Al alcanzar `amount`, el status pasa a `collected`.
+- `collection_period` y `collected_at` se asignan solo al completar el cobro total (último abono).
+
+### Tipos de Transaction
+- `disbursement`: Fondo → Compañía. Se confirma automáticamente.
+- `collection`: Deudor → Fondo. Puede ser cobro completo o abono parcial. Requiere confirmación de operator si lo crea un company_user.
+
+---
+
+## Convenciones críticas
+
+### Relaciones en modelos (no cambiar nombres)
+```php
+$closing->executedBy        // NO: executor
+$closing->distributions
+$closing->parametersSnapshot
+$distribution->fundMember   // NO: member
+```
+
+### Tabla con nombre singular (declarar explícitamente)
+```php
+// ClosingParametersSnapshot
+protected $table = 'closing_parameters_snapshot';
+```
+
+### Código de Financing (auto-generado)
+```php
+// booted() en Financing::class
+static::created(function (Financing $financing) {
+    $financing->updateQuietly([
+        'code' => 'FN' . str_pad($financing->id, 6, '0', STR_PAD_LEFT),
+    ]);
+});
+```
+
+### Permisos Shield
+Shield usa `::` como separador en nombres compuestos:
+```
+view_any_monthly::closing
+view_monthly::closing
+```
+
+### Tailwind
+El tema Filament **no está compilado**. Las clases Tailwind custom no funcionan.
+Usar **inline styles** para layouts personalizados:
+```blade
+style="display:grid;grid-template-columns:1fr 1fr;gap:24px"
+```
+
+### Lógica de negocio
+**Nunca en Resources ni Widgets.** Siempre en la capa de Services:
+`DistributionService`, `TransactionService`, `FinancingService`, `ClientService`, `ParameterService`, `FundMemberService`.
+
+### No hay queue workers
+Namecheap shared hosting (producción futura) — **todas las operaciones son síncronas**.
+
+---
+
+## Parámetros del sistema
+
+Configurables desde el módulo Parámetros (super_admin). Cada cambio queda en historial.
+
+| Key | Default | Descripción |
+|---|---|---|
+| `commission_pct` | 5.0 | % de comisión sobre el monto del financiamiento |
+| `fixed_return_pct` | 3.0 | % de rendimiento fijo mensual sobre capital aportado |
+| `reserve_pct` | 20.0 | % de reserva sobre la ganancia neta |
+| `in_kind_pct` | 50.0 | % del post-reserva para el aportante en especie |
+| `default_term_days` | 15 | Plazo predeterminado en días |
+
+---
+
+## Regla de distribución mensual (orden estricto — no modificar)
+
+```
+Comisiones cobradas del período (collection_period = período seleccionado)
+  − Rendimiento fijo (capital × fixed_return_pct) por cada miembro activo de capital
+  = Ganancia neta
+      − Reserva (ganancia × reserve_pct)
+      = Post-reserva
+          − Aporte en especie (post-reserva × in_kind_pct)
+          = Disponible para capital → reparto proporcional por fund_percentage
+
+Verificación: comisiones = total_fijo + reserva + naturaleza + capital → diff debe ser 0
+```
+
+Cada cierre persiste: `MonthlyClosing` + `ClosingDistribution` por miembro + `ClosingParametersSnapshot`.
+Un período solo puede cerrarse una vez.
+
+---
+
+## Widgets del Dashboard
+
+| Widget | Visible para | Scope |
+|---|---|---|
+| `CapitalSummaryWidget` | super_admin, operator, member | Datos globales del fondo |
+| `FinancingPipelineWidget` | Todos | Filtrado por company_id para company_user |
+| `PendingTransactionsWidget` | super_admin, operator | Global |
+| `CuentasPorCobrarStatsWidget` | super_admin, operator, company_user | Filtrado por company_id para company_user |
+| `CuentasPorPagarStatsWidget` | super_admin, operator | Global (isDiscovered = false) |
+
+---
+
+## Páginas custom (Filament Pages)
+
+| Page | Acceso | Descripción |
+|---|---|---|
+| `MonthlyClosingPage` | super_admin | Ejecutar y ver cierres mensuales |
+| `CuentasPorCobrarPage` | super_admin, operator, company_user | Vista de cuentas por cobrar |
+| `CuentasPorPagarPage` | super_admin, operator | Vista de cuentas por pagar |
+| `ParametrosPage` | super_admin | Gestión de parámetros del sistema |
+
+---
+
+## Versionamiento
+
+Se sigue [Semantic Versioning](https://semver.org/lang/es/):
+- **Mayor** (`x.0.0`): cambio que rompe compatibilidad
+- **Menor** (`0.x.0`): nueva funcionalidad
+- **Parche** (`0.0.x`): corrección o mejora menor
+
+Flujo por versión:
+1. `git commit` del cambio
+2. Actualizar `"version"` en `composer.json`
+3. `git commit -m "chore: bump version to vX.X.X"`
+4. `git tag -a vX.X.X -m "..."`
+5. `git push origin master --tags`
