@@ -25,6 +25,7 @@ use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Filament\Support\RawJs;
 use Illuminate\Database\Eloquent\Builder;
 
 class TransactionResource extends Resource
@@ -176,8 +177,13 @@ class TransactionResource extends Resource
                 ->label(fn (Get $get) => $get('type') === 'collection' ? 'Monto a Cobrar' : 'Monto Total')
                 ->prefix('RD$')
                 ->required()
-                ->inputMode('decimal')
-                ->disabled(fn (Get $get): bool => $get('type') !== 'collection')
+                ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
+                ->stripCharacters(',')
+                ->numeric()
+                ->disabled(fn (Get $get): bool =>
+                    $get('type') !== 'collection'
+                    || count($get('financing_ids') ?? []) > 1
+                )
                 ->dehydrated()
                 ->default(function () use ($qType, $qFinancingIds): ?string {
                     if (! $qType || empty($qFinancingIds)) {
@@ -190,9 +196,17 @@ class TransactionResource extends Resource
                     }
                     return $amount > 0 ? number_format($amount, 2, '.', ',') : null;
                 })
-                ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null)
-                ->helperText(fn (Get $get) => $get('type') === 'collection' ? 'Puede ingresar un monto parcial (abono) o el total' : null),
+                ->helperText(function (Get $get): ?string {
+                    if ($get('type') !== 'collection') {
+                        return null;
+                    }
+                    $ids = $get('financing_ids') ?? [];
+                    if (count($ids) > 1) {
+                        return 'Pago parcial no disponible cuando hay múltiples financiamientos seleccionados';
+                    }
+                    return 'Puede ingresar un monto parcial (abono) o el total';
+                }),
 
             // ── Datos bancarios ──────────────────────────────────────────────
             Select::make('bank')
@@ -311,7 +325,11 @@ class TransactionResource extends Resource
 
                             TextEntry::make('commission')
                                 ->label('Comisión')
-                                ->money('DOP', locale: 'es_DO'),
+                                ->money('DOP', locale: 'es_DO')
+                                ->visible(function (TextEntry $component): bool {
+                                    $transaction = $component->getLivewire()->record;
+                                    return $transaction->type === 'disbursement';
+                                }),
 
                             TextEntry::make('status')
                                 ->label('Estado')
@@ -366,7 +384,8 @@ class TransactionResource extends Resource
 
                 TextColumn::make('bank')
                     ->label('Banco')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
 
                 TextColumn::make('transaction_number')
                     ->label('No. Transacción')
@@ -403,6 +422,14 @@ class TransactionResource extends Resource
                     ->options([
                         'pending'   => 'Pendiente',
                         'confirmed' => 'Confirmada',
+                    ]),
+
+                SelectFilter::make('bank')
+                    ->label('Banco')
+                    ->options([
+                        'BanReservas'   => 'BanReservas',
+                        'BHD'           => 'BHD',
+                        'Banco Popular' => 'Banco Popular',
                     ]),
             ])
             ->actions([

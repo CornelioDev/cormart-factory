@@ -21,6 +21,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'company_id',
+        'fund_member_id',
         'name',
         'email',
         'password',
@@ -52,5 +53,10 @@ class User extends Authenticatable
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function fundMember(): BelongsTo
+    {
+        return $this->belongsTo(FundMember::class);
     }
 }

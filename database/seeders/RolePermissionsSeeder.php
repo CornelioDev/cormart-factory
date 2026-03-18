@@ -21,7 +21,6 @@ class RolePermissionsSeeder extends Seeder
             'widget_CapitalSummaryWidget',
             'widget_FinancingPipelineWidget',
             'widget_PendingTransactionsWidget',
-            'widget_ActiveFinancingsWidget',
             'page_CuentasPorCobrarPage',
             'page_CuentasPorPagarPage',
         ]);
@@ -33,7 +32,6 @@ class RolePermissionsSeeder extends Seeder
             'view_any_monthly::closing', 'view_monthly::closing',
             'widget_CapitalSummaryWidget',
             'widget_FinancingPipelineWidget',
-            'widget_ActiveFinancingsWidget',
             'page_CuentasPorCobrarPage',
         ]);
 
@@ -43,7 +41,6 @@ class RolePermissionsSeeder extends Seeder
             'view_any_financing', 'view_financing',
             'view_any_transaction', 'view_transaction', 'create_transaction',
             'widget_FinancingPipelineWidget',
-            'widget_ActiveFinancingsWidget',
             'page_CuentasPorCobrarPage',
         ]);
     }

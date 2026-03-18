@@ -18,6 +18,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Support\RawJs;
 use Filament\Forms\Set;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
@@ -147,10 +148,11 @@ class FinancingResource extends Resource
             TextInput::make('amount')
                 ->label('Monto a Financiar')
                 ->required()
-                ->inputMode('decimal')
                 ->prefix('RD$')
+                ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
+                ->stripCharacters(',')
+                ->numeric()
                 ->live(onBlur: true)
-                ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null)
                 ->afterStateUpdated(function (Get $get, Set $set, $state) {
                     $amount = (float) str_replace(',', '', $state);
@@ -179,7 +181,8 @@ class FinancingResource extends Resource
                 ->prefix('RD$')
                 ->disabled()
                 ->dehydrated()
-                ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
+                ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
+                ->stripCharacters(',')
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null),
 
             TextInput::make('transfer_amount')
@@ -187,7 +190,8 @@ class FinancingResource extends Resource
                 ->prefix('RD$')
                 ->disabled()
                 ->dehydrated()
-                ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
+                ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
+                ->stripCharacters(',')
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null),
 
             DatePicker::make('due_date')

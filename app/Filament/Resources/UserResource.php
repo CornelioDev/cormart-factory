@@ -7,6 +7,7 @@ use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
@@ -53,7 +54,39 @@ class UserResource extends Resource
                 ->relationship('roles', 'name')
                 ->options(Role::all()->pluck('name', 'id'))
                 ->preload()
-                ->required(),
+                ->required()
+                ->live(),
+
+            Select::make('fund_member_id')
+                ->label('Miembro del Fondo')
+                ->relationship('fundMember', 'name')
+                ->searchable()
+                ->preload()
+                ->visible(fn (Get $get): bool =>
+                    collect($get('roles') ?? [])
+                        ->contains(fn ($v) => Role::find($v)?->name === 'member')
+                )
+                ->required(fn (Get $get): bool =>
+                    collect($get('roles') ?? [])
+                        ->contains(fn ($v) => Role::find($v)?->name === 'member')
+                )
+                ->helperText('Asociar este usuario a un miembro del fondo'),
+
+            Select::make('company_id')
+                ->label('Compañía')
+                ->relationship('company', 'name', fn ($query) => $query->where('active', true))
+                ->searchable()
+                ->preload()
+                ->nullable()
+                ->visible(fn (Get $get): bool =>
+                    collect($get('roles') ?? [])
+                        ->contains(fn ($v) => Role::find($v)?->name === 'company_user')
+                )
+                ->required(fn (Get $get): bool =>
+                    collect($get('roles') ?? [])
+                        ->contains(fn ($v) => Role::find($v)?->name === 'company_user')
+                )
+                ->helperText('Compañía asociada para este usuario externo'),
         ]);
     }
 
@@ -75,10 +108,11 @@ class UserResource extends Resource
                     ->label('Rol')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'super_admin' => 'danger',
-                        'operator'    => 'warning',
-                        'member'      => 'primary',
-                        default       => 'gray',
+                        'super_admin'  => 'danger',
+                        'operator'     => 'warning',
+                        'member'       => 'success',
+                        'company_user' => 'info',
+                        default        => 'gray',
                     }),
 
                 TextColumn::make('created_at')

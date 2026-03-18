@@ -4,16 +4,20 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\FundMemberResource\Pages;
 use App\Models\FundMember;
+use App\Services\FundMemberService;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Support\RawJs;
 use Filament\Tables\Table;
 
 class FundMemberResource extends Resource
@@ -46,19 +50,26 @@ class FundMemberResource extends Resource
 
             TextInput::make('contribution')
                 ->label('Aportación')
-                ->inputMode('decimal')
                 ->prefix('RD$')
+                ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
+                ->stripCharacters(',')
+                ->numeric()
                 ->required()
-                ->visible(fn ($get) => $get('type') === 'capital')
-                ->formatStateUsing(fn ($state) => $state ? number_format((float) str_replace(',', '', $state), 2, '.', ',') : null)
+                ->visible(fn (Get $get) => $get('type') === 'capital')
+                ->live(onBlur: true)
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null),
 
-            TextInput::make('fund_percentage')
+            Placeholder::make('fund_percentage_preview')
                 ->label('% del Fondo')
-                ->numeric()
-                ->suffix('%')
-                ->required()
-                ->visible(fn ($get) => $get('type') === 'capital'),
+                ->content(function (Get $get): string {
+                    $contribution = (float) str_replace(',', '', $get('contribution') ?? '0');
+                    if ($contribution <= 0) {
+                        return '—';
+                    }
+                    $pct = (new FundMemberService())->calculatePercentage($contribution);
+                    return number_format($pct, 2) . '%';
+                })
+                ->visible(fn (Get $get) => $get('type') === 'capital'),
 
             DatePicker::make('joined_at')
                 ->label('Miembro desde')

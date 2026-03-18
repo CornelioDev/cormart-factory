@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Financing;
+use App\Models\Transaction;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -29,9 +30,21 @@ class CuentasPorPagarStatsWidget extends StatsOverviewWidget
                 ->description('monto bruto')
                 ->color('gray'),
 
-            Stat::make('Solicitudes Pendientes', (string) $count)
-                ->description('financiamiento' . ($count !== 1 ? 's' : '') . ' en cola')
-                ->color($count > 0 ? 'warning' : 'gray'),
+            Stat::make('Desembolsos del Mes', 'RD$ ' . number_format(
+                    (float) Transaction::where('type', 'disbursement')
+                        ->where('status', 'confirmed')
+                        ->whereMonth('transaction_date', now()->month)
+                        ->whereYear('transaction_date', now()->year)
+                        ->sum('amount'), 2, '.', ','
+                ))
+                ->description(
+                    Transaction::where('type', 'disbursement')
+                        ->where('status', 'confirmed')
+                        ->whereMonth('transaction_date', now()->month)
+                        ->whereYear('transaction_date', now()->year)
+                        ->count() . ' transacción(es) este mes'
+                )
+                ->color('info'),
 
             Stat::make('Antigüedad Promedio', number_format($avgDays, 0) . ' días')
                 ->description('desde la solicitud')
