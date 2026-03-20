@@ -25,30 +25,38 @@ class MonthlyClosingResource extends Resource
                 Tables\Columns\TextColumn::make('period')
                     ->label('Periodo')
                     ->sortable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('total_commissions')
                     ->label('Comisiones')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('total_fixed')
                     ->label('Fijo Pagado')
-                    ->money('DOP', locale: 'es_DO'),
+                    ->money('DOP', locale: 'es_DO')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('reserve')
                     ->label('Reserva')
-                    ->money('DOP', locale: 'es_DO'),
+                    ->money('DOP', locale: 'es_DO')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('in_kind_payment')
                     ->label('Naturaleza')
-                    ->money('DOP', locale: 'es_DO'),
+                    ->money('DOP', locale: 'es_DO')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('available_for_capital')
                     ->label('Para Capital')
-                    ->money('DOP', locale: 'es_DO'),
+                    ->money('DOP', locale: 'es_DO')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('executedBy.name')
                     ->label('Ejecutado por')
-                    ->color('gray'),
+                    ->color('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('closed_at')
                     ->label('Fecha')
                     ->dateTime('d M Y, H:i')
-                    ->color('gray'),
+                    ->color('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('period', 'desc')
             ->actions([

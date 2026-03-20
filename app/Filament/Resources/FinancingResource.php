@@ -449,37 +449,44 @@ class FinancingResource extends Resource
                     ->url(fn (Financing $record): string =>
                         static::getUrl('view', ['record' => $record])
                     )
-                    ->color('primary'),
+                    ->color('primary')
+                    ->toggleable(),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('client.name')
                     ->label('Deudor')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('amount')
                     ->label('Monto')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('commission')
                     ->label('Comisión')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('request_date')
                     ->label('Solicitud')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('due_date')
                     ->label('Vencimiento')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -497,7 +504,8 @@ class FinancingResource extends Resource
                         'partially_collected' => 'Abonado',
                         'collected'           => 'Cobrado',
                         'cancelled'           => 'Cancelado',
-                    }),
+                    })
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('status')

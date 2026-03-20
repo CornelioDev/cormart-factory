@@ -92,7 +92,8 @@ class FundMemberResource extends Resource
                 TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('type')
                     ->label('Tipo')
@@ -104,26 +105,31 @@ class FundMemberResource extends Resource
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'capital'  => 'Capital',
                         'in_kind'  => 'Naturaleza',
-                    }),
+                    })
+                    ->toggleable(),
 
                 TextColumn::make('contribution')
                     ->label('Aportación')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('fund_percentage')
                     ->label('% del Fondo')
                     ->suffix('%')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('joined_at')
                     ->label('Miembro desde')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 IconColumn::make('active')
                     ->label('Activo')
-                    ->boolean(),
+                    ->boolean()
+                    ->toggleable(),
             ])
             ->actions([
                 EditAction::make(),

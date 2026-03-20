@@ -97,12 +97,14 @@ class UserResource extends Resource
                 TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('email')
                     ->label('Correo electrónico')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('roles.name')
                     ->label('Rol')
@@ -113,12 +115,14 @@ class UserResource extends Resource
                         'member'       => 'success',
                         'company_user' => 'info',
                         default        => 'gray',
-                    }),
+                    })
+                    ->toggleable(),
 
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
                 EditAction::make(),

@@ -64,4 +64,12 @@ class Transaction extends Model
         return $this->belongsToMany(Financing::class, 'transaction_financings')
                     ->withTimestamps();
     }
+
+    public function getBeneficiario(): ?string
+    {
+        return match ($this->type) {
+            'expense' => $this->supplier?->name,
+            default   => $this->company?->name,
+        };
+    }
 }

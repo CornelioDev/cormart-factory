@@ -41,7 +41,8 @@ class TransactionResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()
+            ->with(['company', 'supplier', 'financings.client']);
         $user  = auth()->user();
 
         if ($user->hasRole('company_user')) {
@@ -309,15 +310,10 @@ class TransactionResource extends Resource
                             default     => $state,
                         }),
 
-                    TextEntry::make('company.name')
-                        ->label('Compañía')
-                        ->placeholder('—')
-                        ->visible(fn ($record): bool => $record->type !== 'expense'),
-
-                    TextEntry::make('supplier.name')
-                        ->label('Proveedor')
-                        ->placeholder('—')
-                        ->visible(fn ($record): bool => $record->type === 'expense'),
+                    TextEntry::make('beneficiario')
+                        ->label('Beneficiario')
+                        ->getStateUsing(fn (Transaction $record): ?string => $record->getBeneficiario())
+                        ->placeholder('—'),
 
                     TextEntry::make('amount')
                         ->label('Monto Total')
@@ -408,40 +404,51 @@ class TransactionResource extends Resource
                     ->url(fn (Transaction $record): string =>
                         static::getUrl('view', ['record' => $record])
                     )
-                    ->color('primary'),
+                    ->color('primary')
+                    ->toggleable(),
 
-                TextColumn::make('financings.client.name')
-                    ->label('Deudor')
-                    ->searchable()
-                    ->limit(20)
-                    ->tooltip(fn ($record): ?string => $record->financings->pluck('client.name')->join(', '))
-                    ->placeholder('—'),
-
-                TextColumn::make('supplier.name')
-                    ->label('Proveedor')
+                TextColumn::make('beneficiario')
+                    ->label('Beneficiario')
+                    ->getStateUsing(fn (Transaction $record): ?string => $record->getBeneficiario())
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->where(function ($q) use ($search) {
+                            $q->whereHas('company', fn ($q) => $q->where('name', 'like', "%{$search}%"))
+                              ->orWhereHas('supplier', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                        });
+                    })
+                    ->tooltip(function (Transaction $record): ?string {
+                        if ($record->type === 'expense') {
+                            return null;
+                        }
+                        $names = $record->financings->pluck('client.name')->filter()->join(', ');
+                        return $names ?: null;
+                    })
                     ->placeholder('—')
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: false),
+                    ->toggleable(),
 
                 TextColumn::make('amount')
                     ->label('Monto')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('bank')
                     ->label('Banco')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('transaction_number')
                     ->label('No. Transacción')
                     ->searchable()
-                    ->copyable(),
+                    ->copyable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('transaction_date')
                     ->label('Fecha')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('type')
                     ->label('Tipo')
@@ -457,7 +464,8 @@ class TransactionResource extends Resource
                         'collection'   => 'Cobro',
                         'expense'      => 'Gasto',
                         default        => $state,
-                    }),
+                    })
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('type')

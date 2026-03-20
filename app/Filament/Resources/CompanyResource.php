@@ -69,39 +69,47 @@ class CompanyResource extends Resource
                 TextColumn::make('name')
                     ->label('Compañía')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('rnc')
                     ->label('RNC')
                     ->searchable()
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('contact_name')
                     ->label('Contacto')
                     ->searchable()
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 TextColumn::make('contact_email')
                     ->label('Correo')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('contact_phone')
                     ->label('Teléfono')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('clients_count')
                     ->label('Deudores')
                     ->counts('clients')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 IconColumn::make('active')
                     ->label('Estado')
-                    ->boolean(),
+                    ->boolean()
+                    ->toggleable(),
 
                 TextColumn::make('created_at')
                     ->label('Registrado')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 TernaryFilter::make('active')

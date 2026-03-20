@@ -195,8 +195,6 @@ Debe retornar `1` (true).
 
 ## Observaciones generales
 
-> _Escribe aquí cualquier hallazgo no cubierto por los casos anteriores._ En la acción Toggle Columns de la lista de transacciones, me gustaría poder tener todos los campos, lo mismo en cada otra lista dentro del sistema. (Pendiente para versión futura).
-
-El idioma de esta instancia sale en inglés y en español, necesito que todo esté en español (Pendiente para una versión futura).
-
-En el listado tenemos una columna para deudor y proveedor, pero en futuras versiones vamos a tener las transacciones de desembolso de ganancias a los miembros, lo que requeriría una tercera columna. Así que lo mejor es unificar en una misma columna el destinatario de las transacciones. (Pendiente para una versión futura).
+- [x] ~~Toggle Columns en todas las listas~~ → Resuelto en v0.5.1
+- [ ] El idioma de esta instancia sale en inglés y en español, necesito que todo esté en español. Se investigó: el sistema está correctamente traducido (locale `es`, traducciones completas). Pendiente de investigar si es configuración de instancia o navegador.
+- [x] ~~Unificar columnas deudor/proveedor en una sola columna~~ → Resuelto en v0.5.1 como "Beneficiario"

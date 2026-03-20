@@ -70,33 +70,39 @@ class ClientResource extends Resource
                 TextColumn::make('company.name')
                     ->label('Compañía')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('name')
                     ->label('Deudor')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('financings_count')
                     ->label('Financiamientos')
                     ->counts('financings')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('financings_sum_amount')
                     ->label('Monto Total')
                     ->sum('financings', 'amount')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('financings_sum_commission')
                     ->label('Comisiones')
                     ->sum('financings', 'commission')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 IconColumn::make('active')
                     ->label('Activo')
-                    ->boolean(),
+                    ->boolean()
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('company_id')
