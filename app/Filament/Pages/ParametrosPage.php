@@ -41,6 +41,7 @@ class ParametrosPage extends Page implements HasForms
             'reserve_pct'       => round((float) ($params['reserve_pct']       ?? 20.0), 2),
             'in_kind_pct'       => round((float) ($params['in_kind_pct']       ?? 50.0), 2),
             'default_term_days' => (int)   ($params['default_term_days'] ?? 15),
+            'tax_pct'           => round((float) ($params['tax_pct']           ?? 0.15), 4),
         ]);
     }
 
@@ -104,6 +105,16 @@ class ParametrosPage extends Page implements HasForms
                             ->step(1)
                             ->required()
                             ->helperText('Plazo predeterminado al crear un financiamiento.'),
+
+                        TextInput::make('tax_pct')
+                            ->label('Impuesto sobre Desembolsos')
+                            ->suffix('%')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->step(0.01)
+                            ->required()
+                            ->helperText('Se genera automáticamente como gasto en cada desembolso al fondo o a un miembro.'),
                     ]),
             ])
             ->statePath('data');

@@ -14,7 +14,7 @@ Repositorio: https://github.com/CornelioDev/cormart-factory
 
 ---
 
-## Estado actual: v0.4.1
+## Estado actual: v0.5.0
 
 El sistema está completamente operativo. Se mantienen dos instancias locales:
 
@@ -115,6 +115,14 @@ style="display:grid;grid-template-columns:1fr 1fr;gap:24px"
 **Nunca en Resources ni Widgets.** Siempre en la capa de Services:
 `DistributionService`, `TransactionService`, `FinancingService`, `ClientService`, `ParameterService`, `FundMemberService`.
 
+### Recursos del stack antes de construir desde cero
+Antes de implementar cualquier funcionalidad, verificar si el stack ya lo provee:
+- **Filament 3**: Actions, Infolists, Notifications, Widgets, Table columns/filters/bulk actions, Form components (FileUpload, Repeater, etc.)
+- **Laravel 12**: Events, Observers, Policies, Form Requests, Collections, Carbon
+- **Spatie Permission / Shield**: Permisos granulares, roles, `canAccess()`, `before` gate
+
+Solo construir solución custom si el stack no cubre el caso.
+
 ### No hay queue workers
 Namecheap shared hosting (producción futura) — **todas las operaciones son síncronas**.
 
@@ -173,6 +181,17 @@ Un período solo puede cerrarse una vez.
 | `CuentasPorCobrarPage` | super_admin, operator, company_user | Vista de cuentas por cobrar |
 | `CuentasPorPagarPage` | super_admin, operator | Vista de cuentas por pagar |
 | `ParametrosPage` | super_admin | Gestión de parámetros del sistema |
+
+---
+
+## Documentación de proyecto
+
+| Documento | Propósito |
+|---|---|
+| `docs/ROADMAP.md` | Roadmap detallado v0.5.0 → v1.0.0 con cambios de BD y archivos por versión |
+| `docs/TODO.md` | Checklist de tareas con estado `[ ]` / `[x]` — fuente de verdad del avance |
+
+Al completar una versión: marcar ítems en `TODO.md`, bump en `composer.json`, commit + tag + push.
 
 ---
 

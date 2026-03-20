@@ -45,7 +45,7 @@ class TransactionResource extends Resource
         $user  = auth()->user();
 
         if ($user->hasRole('company_user')) {
-            $query->where('type', 'collection')
+            $query->whereIn('type', ['collection'])
                   ->where('company_id', $user->company_id);
         }
 
@@ -74,10 +74,15 @@ class TransactionResource extends Resource
                     if (! $isInternal) {
                         return ['collection' => 'Cobro (Deudor → Fondo)'];
                     }
-                    return [
+                    $isSuperAdmin = auth()->user()->hasRole('super_admin');
+                    $options = [
                         'disbursement' => 'Desembolso (Fondo → Compañía)',
                         'collection'   => 'Cobro (Deudor → Fondo)',
                     ];
+                    if ($isSuperAdmin) {
+                        $options['expense'] = 'Gasto Operativo';
+                    }
+                    return $options;
                 })
                 ->default($qType)
                 ->disabled(! $isInternal)
@@ -97,6 +102,7 @@ class TransactionResource extends Resource
                 ->disabled(! $isInternal)
                 ->dehydrated()
                 ->live()
+                ->visible(fn (Get $get): bool => $get('type') !== 'expense')
                 ->afterStateUpdated(function (Set $set) use ($isInternal) {
                     if ($isInternal) {
                         $set('financing_ids', []);
@@ -104,13 +110,32 @@ class TransactionResource extends Resource
                     }
                 }),
 
+            // ── Proveedor (solo para gastos) ─────────────────────────────────
+            Select::make('supplier_id')
+                ->label('Proveedor')
+                ->relationship('supplier', 'name')
+                ->searchable()
+                ->preload()
+                ->createOptionForm([
+                    TextInput::make('name')
+                        ->label('Nombre')
+                        ->required()
+                        ->maxLength(255),
+                    TextInput::make('rnc')
+                        ->label('RNC')
+                        ->maxLength(50),
+                ])
+                ->required(fn (Get $get): bool => $get('type') === 'expense')
+                ->visible(fn (Get $get): bool => $get('type') === 'expense'),
+
             // ── Financiamientos vinculados ───────────────────────────────────
             Select::make('financing_ids')
                 ->label('Financiamientos')
                 ->multiple()
-                ->required()
+                ->required(fn (Get $get): bool => $get('type') !== 'expense')
                 ->default($qFinancingIds)
                 ->live()
+                ->visible(fn (Get $get): bool => $get('type') !== 'expense')
                 ->options(function (Get $get) use ($qType, $qCompanyId, $qFinancingIds): array {
                     $type      = $get('type') ?? $qType;
                     $companyId = $get('company_id') ?? $qCompanyId;
@@ -174,15 +199,19 @@ class TransactionResource extends Resource
 
             // ── Monto ──────────────────────────────────────────────────────
             TextInput::make('amount')
-                ->label(fn (Get $get) => $get('type') === 'collection' ? 'Monto a Cobrar' : 'Monto Total')
+                ->label(fn (Get $get) => match($get('type')) {
+                    'collection' => 'Monto a Cobrar',
+                    'expense'    => 'Monto del Gasto',
+                    default      => 'Monto Total',
+                })
                 ->prefix('RD$')
                 ->required()
                 ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
                 ->stripCharacters(',')
                 ->numeric()
                 ->disabled(fn (Get $get): bool =>
-                    $get('type') !== 'collection'
-                    || count($get('financing_ids') ?? []) > 1
+                    $get('type') === 'disbursement'
+                    || ($get('type') === 'collection' && count($get('financing_ids') ?? []) > 1)
                 )
                 ->dehydrated()
                 ->default(function () use ($qType, $qFinancingIds): ?string {
@@ -221,6 +250,7 @@ class TransactionResource extends Resource
             TextInput::make('transaction_number')
                 ->label('Número de Transacción')
                 ->required()
+                ->unique(table: 'transactions', column: 'transaction_number')
                 ->maxLength(255),
 
             DatePicker::make('transaction_date')
@@ -231,8 +261,9 @@ class TransactionResource extends Resource
 
             Textarea::make('notes')
                 ->label('Notas')
+                ->required(fn (Get $get): bool => $get('type') === 'expense')
+                ->helperText(fn (Get $get): ?string => $get('type') === 'expense' ? 'Describe el gasto (obligatorio).' : null)
                 ->maxLength(500)
-                ->nullable()
                 ->columnSpanFull(),
         ]);
     }
@@ -254,11 +285,13 @@ class TransactionResource extends Resource
                         ->color(fn (string $state): string => match ($state) {
                             'disbursement' => 'info',
                             'collection'   => 'success',
+                            'expense'      => 'danger',
                             default        => 'gray',
                         })
                         ->formatStateUsing(fn (string $state): string => match ($state) {
                             'disbursement' => 'Desembolso',
                             'collection'   => 'Cobro',
+                            'expense'      => 'Gasto',
                             default        => $state,
                         }),
 
@@ -278,7 +311,13 @@ class TransactionResource extends Resource
 
                     TextEntry::make('company.name')
                         ->label('Compañía')
-                        ->placeholder('—'),
+                        ->placeholder('—')
+                        ->visible(fn ($record): bool => $record->type !== 'expense'),
+
+                    TextEntry::make('supplier.name')
+                        ->label('Proveedor')
+                        ->placeholder('—')
+                        ->visible(fn ($record): bool => $record->type === 'expense'),
 
                     TextEntry::make('amount')
                         ->label('Monto Total')
@@ -302,6 +341,7 @@ class TransactionResource extends Resource
                 ]),
 
             Section::make('Financiamientos Asociados')
+                ->visible(fn ($record): bool => $record->type !== 'expense')
                 ->schema([
                     RepeatableEntry::make('financings')
                         ->label('')
@@ -377,6 +417,12 @@ class TransactionResource extends Resource
                     ->tooltip(fn ($record): ?string => $record->financings->pluck('client.name')->join(', '))
                     ->placeholder('—'),
 
+                TextColumn::make('supplier.name')
+                    ->label('Proveedor')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: false),
+
                 TextColumn::make('amount')
                     ->label('Monto')
                     ->money('DOP', locale: 'es_DO')
@@ -403,10 +449,14 @@ class TransactionResource extends Resource
                     ->color(fn (string $state): string => match ($state) {
                         'disbursement' => 'info',
                         'collection'   => 'success',
+                        'expense'      => 'danger',
+                        default        => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'disbursement' => 'Desembolso',
                         'collection'   => 'Cobro',
+                        'expense'      => 'Gasto',
+                        default        => $state,
                     }),
             ])
             ->filters([
@@ -415,6 +465,7 @@ class TransactionResource extends Resource
                     ->options([
                         'disbursement' => 'Desembolso',
                         'collection'   => 'Cobro',
+                        'expense'      => 'Gasto',
                     ]),
 
                 SelectFilter::make('status')
@@ -431,6 +482,12 @@ class TransactionResource extends Resource
                         'BHD'           => 'BHD',
                         'Banco Popular' => 'Banco Popular',
                     ]),
+
+                SelectFilter::make('supplier_id')
+                    ->label('Proveedor')
+                    ->relationship('supplier', 'name')
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 Action::make('confirm')

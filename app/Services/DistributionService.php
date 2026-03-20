@@ -8,6 +8,7 @@ use App\Models\FundMember;
 use App\Models\Financing;
 use App\Models\MonthlyClosing;
 use App\Models\Parameter;
+use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
 
 class DistributionService
@@ -21,6 +22,8 @@ class DistributionService
         $reservePct      = (float) $params['reserve_pct'];
         $inKindPct       = (float) $params['in_kind_pct'];
 
+        [$year, $month] = explode('-', $period);
+
         $capitalMembers = FundMember::where('type', 'capital')
             ->where('active', true)
             ->get();
@@ -33,18 +36,27 @@ class DistributionService
             ->where('collection_period', $period)
             ->sum('commission');
 
+        $totalExpenses = Transaction::where('type', 'expense')
+            ->where('status', 'confirmed')
+            ->whereYear('transaction_date', $year)
+            ->whereMonth('transaction_date', $month)
+            ->sum('amount');
+
+        $totalExpenses = round((float) $totalExpenses, 2);
+        $baseEarnings  = round((float) $totalCommissions - $totalExpenses, 2);
+
         $totalFixed = $capitalMembers->sum(function ($member) use ($fixedReturnPct) {
             return round($member->contribution * ($fixedReturnPct / 100), 2);
         });
 
-        $netProfit       = round($totalCommissions - $totalFixed, 2);
-        $reserve         = round($netProfit * ($reservePct / 100), 2);
-        $postReserve     = round($netProfit - $reserve, 2);
-        $inKindPayment   = round($postReserve * ($inKindPct / 100), 2);
+        $netProfit        = round($baseEarnings - $totalFixed, 2);
+        $reserve          = round($netProfit * ($reservePct / 100), 2);
+        $postReserve      = round($netProfit - $reserve, 2);
+        $inKindPayment    = round($postReserve * ($inKindPct / 100), 2);
         $availableCapital = round($postReserve - $inKindPayment, 2);
 
         $verificationDiff = round(
-            $totalCommissions - ($totalFixed + $reserve + $inKindPayment + $availableCapital),
+            (float) $totalCommissions - ($totalExpenses + $totalFixed + $reserve + $inKindPayment + $availableCapital),
             2
         );
 
@@ -52,12 +64,12 @@ class DistributionService
             $fixed        = round($member->contribution * ($fixedReturnPct / 100), 2);
             $proportional = round($availableCapital * ($member->fund_percentage / 100), 2);
             return [
-                'fund_member_id'    => $member->id,
-                'name'              => $member->name,
-                'type'              => $member->type,
-                'fixed_amount'      => $fixed,
+                'fund_member_id'      => $member->id,
+                'name'                => $member->name,
+                'type'                => $member->type,
+                'fixed_amount'        => $fixed,
                 'proportional_amount' => $proportional,
-                'total_amount'      => round($fixed + $proportional, 2),
+                'total_amount'        => round($fixed + $proportional, 2),
             ];
         })->toArray();
 
@@ -73,18 +85,20 @@ class DistributionService
         }
 
         return [
-            'period'               => $period,
-            'total_commissions'    => $totalCommissions,
-            'total_fixed'          => $totalFixed,
-            'net_profit'           => $netProfit,
-            'reserve'              => $reserve,
-            'post_reserve'         => $postReserve,
-            'in_kind_payment'      => $inKindPayment,
+            'period'                => $period,
+            'total_commissions'     => $totalCommissions,
+            'total_expenses'        => $totalExpenses,
+            'base_earnings'         => $baseEarnings,
+            'total_fixed'           => $totalFixed,
+            'net_profit'            => $netProfit,
+            'reserve'               => $reserve,
+            'post_reserve'          => $postReserve,
+            'in_kind_payment'       => $inKindPayment,
             'available_for_capital' => $availableCapital,
-            'verification_diff'    => $verificationDiff,
-            'distributions'        => $memberDistributions,
-            'parameters'           => $params->toArray(),
-            'financings_count'     => Financing::where('status', 'collected')
+            'verification_diff'     => $verificationDiff,
+            'distributions'         => $memberDistributions,
+            'parameters'            => $params->toArray(),
+            'financings_count'      => Financing::where('status', 'collected')
                                         ->where('collection_period', $period)
                                         ->count(),
         ];
@@ -100,17 +114,18 @@ class DistributionService
 
         return DB::transaction(function () use ($data, $period, $executedBy) {
             $closing = MonthlyClosing::create([
-                'period'               => $period,
-                'total_commissions'    => $data['total_commissions'],
-                'total_fixed'          => $data['total_fixed'],
-                'net_profit'           => $data['net_profit'],
-                'reserve'              => $data['reserve'],
-                'post_reserve'         => $data['post_reserve'],
-                'in_kind_payment'      => $data['in_kind_payment'],
+                'period'                => $period,
+                'total_commissions'     => $data['total_commissions'],
+                'total_expenses'        => $data['total_expenses'],
+                'total_fixed'           => $data['total_fixed'],
+                'net_profit'            => $data['net_profit'],
+                'reserve'               => $data['reserve'],
+                'post_reserve'          => $data['post_reserve'],
+                'in_kind_payment'       => $data['in_kind_payment'],
                 'available_for_capital' => $data['available_for_capital'],
-                'verification_diff'    => $data['verification_diff'],
-                'executed_by'          => $executedBy,
-                'closed_at'            => now(),
+                'verification_diff'     => $data['verification_diff'],
+                'executed_by'           => $executedBy,
+                'closed_at'             => now(),
             ]);
 
             foreach ($data['distributions'] as $dist) {

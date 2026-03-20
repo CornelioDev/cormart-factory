@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Financing;
+use App\Models\Parameter;
+use App\Models\Supplier;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +14,8 @@ class TransactionService
     /**
      * Crea una transacción y la vincula a los financiamientos indicados.
      *
-     * Para desembolsos: monto = suma de transfer_amount.
+     * Para desembolsos: monto = suma de transfer_amount. Se genera automáticamente
+     * un gasto de impuesto (tax_pct) sobre el monto.
      * Para cobros: monto puede ser el total (cobro completo) o un monto parcial (abono).
      *   - Si $data['amount'] ya viene definido, se usa ese monto (abono parcial).
      *   - Si no, se calcula desde los financiamientos (cobro completo).
@@ -54,6 +57,9 @@ class TransactionService
                     'disbursed_at' => now(),
                     'issue_period' => now()->format('Y-m'),
                 ]));
+
+                // Auto-generar gasto de impuesto sobre el monto desembolsado
+                $this->createTaxExpense($transaction, $data);
             } elseif ($data['type'] === 'collection') {
                 $date = Carbon::parse($data['transaction_date']);
                 $transactionAmount = (float) $data['amount'];
@@ -79,6 +85,55 @@ class TransactionService
 
             return $transaction;
         });
+    }
+
+    /**
+     * Crea un gasto manual (super_admin).
+     */
+    public function createExpense(array $data): Transaction
+    {
+        return DB::transaction(function () use ($data) {
+            $transaction = Transaction::create($data);
+
+            $transaction->update([
+                'status'       => 'confirmed',
+                'confirmed_by' => auth()->id(),
+                'confirmed_at' => now(),
+            ]);
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Auto-genera un gasto de impuesto (tax_pct) asociado a un desembolso.
+     */
+    private function createTaxExpense(Transaction $disbursement, array $disbursementData): void
+    {
+        $taxPct = (float) Parameter::where('key', 'tax_pct')->value('value');
+
+        if ($taxPct <= 0) {
+            return;
+        }
+
+        $taxAmount  = round((float) $disbursement->amount * ($taxPct / 100), 2);
+        $txCode     = 'TX' . str_pad($disbursement->id, 6, '0', STR_PAD_LEFT);
+        $dgii       = Supplier::firstOrCreate(['name' => 'DGII']);
+        $registrant = $disbursementData['registered_by'] ?? auth()->id();
+
+        Transaction::create([
+            'type'               => 'expense',
+            'status'             => 'confirmed',
+            'amount'             => $taxAmount,
+            'bank'               => $disbursementData['bank'],
+            'transaction_number' => $txCode,
+            'transaction_date'   => $disbursementData['transaction_date'],
+            'supplier_id'        => $dgii->id,
+            'notes'              => "Impuesto por transacción — Automático ({$taxPct}%) por desembolso {$txCode}",
+            'registered_by'      => $registrant,
+            'confirmed_by'       => $registrant,
+            'confirmed_at'       => now(),
+        ]);
     }
 
     /**

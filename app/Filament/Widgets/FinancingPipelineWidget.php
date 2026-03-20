@@ -10,6 +10,11 @@ class FinancingPipelineWidget extends BaseWidget
 {
     protected static ?int $sort = 2;
 
+    protected function getColumns(): int
+    {
+        return 4;
+    }
+
     public static function canView(): bool
     {
         return true;

@@ -35,6 +35,11 @@ class ParameterSeeder extends Seeder
                 'value'       => 15.0000,
                 'description' => 'Plazo estándar de facturas en días',
             ],
+            [
+                'key'         => 'tax_pct',
+                'value'       => 0.15,
+                'description' => 'Impuesto sobre desembolsos (%)',
+            ],
         ];
 
         foreach ($parameters as $parameter) {

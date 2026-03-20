@@ -18,6 +18,10 @@ class CreateTransaction extends CreateRecord
 
         $data['registered_by'] = auth()->id();
 
+        if ($data['type'] === 'expense') {
+            return (new TransactionService())->createExpense($data);
+        }
+
         return (new TransactionService())->create($data, $financingIds);
     }
 }

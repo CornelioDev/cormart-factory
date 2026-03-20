@@ -17,6 +17,7 @@ class Transaction extends Model
         'transaction_number',
         'transaction_date',
         'company_id',
+        'supplier_id',
         'notes',
         'registered_by',
         'confirmed_by',
@@ -41,6 +42,11 @@ class Transaction extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     public function registeredBy(): BelongsTo

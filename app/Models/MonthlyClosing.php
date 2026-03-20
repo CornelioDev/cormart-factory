@@ -11,6 +11,7 @@ class MonthlyClosing extends Model
     protected $fillable = [
         'period',
         'total_commissions',
+        'total_expenses',
         'total_fixed',
         'net_profit',
         'reserve',
@@ -24,6 +25,7 @@ class MonthlyClosing extends Model
 
     protected $casts = [
         'total_commissions'     => 'decimal:2',
+        'total_expenses'        => 'decimal:2',
         'total_fixed'           => 'decimal:2',
         'net_profit'            => 'decimal:2',
         'reserve'               => 'decimal:2',

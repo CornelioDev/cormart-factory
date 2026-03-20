@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Models\Financing;
 use App\Models\FundMember;
+use App\Models\Transaction;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -51,6 +52,12 @@ class CapitalSummaryWidget extends BaseWidget
             ? round($collectedThisMonth / $activeFinancings * 100, 1)
             : 0;
 
+        $expensesThisMonth = Transaction::where('type', 'expense')
+            ->where('status', 'confirmed')
+            ->whereYear('transaction_date', now()->year)
+            ->whereMonth('transaction_date', now()->month)
+            ->sum('amount');
+
         return [
             Stat::make('Capital Total', 'RD$ ' . number_format($totalCapital, 2, '.', ','))
                 ->description('Aportación activa del fondo')
@@ -64,10 +71,6 @@ class CapitalSummaryWidget extends BaseWidget
                 ->description('Listo para nuevos financiamientos')
                 ->color('success'),
 
-            Stat::make('Comisiones del Mes', 'RD$ ' . number_format($commissionsThisMonth, 2, '.', ','))
-                ->description($collectedThisMonth . ' cobrados · ' . now()->translatedFormat('F Y'))
-                ->color('primary'),
-
             Stat::make('Proyección de Comisiones', 'RD$ ' . number_format($projectedCommissions, 2, '.', ','))
                 ->description('Cobrado + ' . $disbursedCount . ' pendientes en calle')
                 ->color('info')
@@ -77,6 +80,15 @@ class CapitalSummaryWidget extends BaseWidget
                 ->description($collectedThisMonth . ' cobrados de ' . $activeFinancings . ' activos')
                 ->color($collectionPct >= 75 ? 'success' : ($collectionPct >= 40 ? 'warning' : 'danger'))
                 ->icon('heroicon-o-check-badge'),
+
+            Stat::make('Comisiones del Mes', 'RD$ ' . number_format($commissionsThisMonth, 2, '.', ','))
+                ->description($collectedThisMonth . ' cobrados · ' . now()->translatedFormat('F Y'))
+                ->color('primary'),
+
+            Stat::make('Gastos del Mes', 'RD$ ' . number_format((float) $expensesThisMonth, 2, '.', ','))
+                ->description('Gastos operativos · ' . now()->translatedFormat('F Y'))
+                ->color('danger')
+                ->icon('heroicon-o-arrow-trending-down'),
         ];
     }
 }

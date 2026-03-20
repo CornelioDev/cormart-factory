@@ -130,7 +130,15 @@
                         <div class="mc-text" style="font-size:14px;font-weight:700">RD$ {{ number_format($preview['total_commissions'], 2, '.', ',') }}</div>
                     </div>
                     <div class="mc-row-alt mc-divider" style="display:flex;align-items:baseline;padding:12px 32px;border-bottom:1px solid">
-                        <div class="mc-muted" style="flex:1;font-size:14px">− Rendimiento fijo (3%)</div>
+                        <div class="mc-muted" style="flex:1;font-size:14px">− Gastos del período</div>
+                        <div class="mc-red" style="font-size:14px;font-weight:700">−RD$ {{ number_format($preview['total_expenses'], 2, '.', ',') }}</div>
+                    </div>
+                    <div class="mc-row-accent mc-divider" style="display:flex;align-items:baseline;padding:12px 24px;border-bottom:1px solid">
+                        <div class="mc-text" style="flex:1;font-size:14px;font-weight:600">Base real de ganancias</div>
+                        <div class="mc-accent" style="font-size:14px;font-weight:700">RD$ {{ number_format($preview['base_earnings'], 2, '.', ',') }}</div>
+                    </div>
+                    <div class="mc-row-alt mc-divider" style="display:flex;align-items:baseline;padding:12px 32px;border-bottom:1px solid">
+                        <div class="mc-muted" style="flex:1;font-size:14px">− Rendimiento fijo ({{ number_format((float) $preview['parameters']['fixed_return_pct'], 2) }}%)</div>
                         <div class="mc-red" style="font-size:14px;font-weight:700">−RD$ {{ number_format($preview['total_fixed'], 2, '.', ',') }}</div>
                     </div>
                     <div class="mc-row-accent mc-divider" style="display:flex;align-items:baseline;padding:12px 24px;border-bottom:1px solid">
@@ -138,7 +146,7 @@
                         <div class="mc-accent" style="font-size:14px;font-weight:700">RD$ {{ number_format($preview['net_profit'], 2, '.', ',') }}</div>
                     </div>
                     <div class="mc-row-alt mc-divider" style="display:flex;align-items:baseline;padding:12px 32px;border-bottom:1px solid">
-                        <div class="mc-muted" style="flex:1;font-size:14px">− Reserva del fondo (20%)</div>
+                        <div class="mc-muted" style="flex:1;font-size:14px">− Reserva del fondo ({{ number_format((float) $preview['parameters']['reserve_pct'], 2) }}%)</div>
                         <div class="mc-red" style="font-size:14px;font-weight:700">−RD$ {{ number_format($preview['reserve'], 2, '.', ',') }}</div>
                     </div>
                     <div class="mc-row-accent mc-divider" style="display:flex;align-items:baseline;padding:12px 24px;border-bottom:1px solid">
@@ -146,7 +154,7 @@
                         <div class="mc-accent" style="font-size:14px;font-weight:700">RD$ {{ number_format($preview['post_reserve'], 2, '.', ',') }}</div>
                     </div>
                     <div class="mc-row-alt mc-divider" style="display:flex;align-items:baseline;padding:12px 32px;border-bottom:1px solid">
-                        <div class="mc-muted" style="flex:1;font-size:14px">− Aportante en naturaleza (50%)</div>
+                        <div class="mc-muted" style="flex:1;font-size:14px">− Aportante en naturaleza ({{ number_format((float) $preview['parameters']['in_kind_pct'], 2) }}%)</div>
                         <div class="mc-red" style="font-size:14px;font-weight:700">−RD$ {{ number_format($preview['in_kind_payment'], 2, '.', ',') }}</div>
                     </div>
                     <div class="mc-row-accent mc-divider" style="display:flex;align-items:baseline;padding:12px 24px;border-bottom:1px solid">
