@@ -146,6 +146,26 @@ class DistributionService
                 ]);
             }
 
+            // Crear transacciones de distribución por miembro y debitar del fondo
+            $transactionService = new TransactionService();
+            $fundAccountService = new FundAccountService();
+            $totalDistributed = 0;
+
+            foreach ($data['distributions'] as $dist) {
+                if ($dist['total_amount'] > 0) {
+                    $transactionService->createEarningDistribution(
+                        $dist['fund_member_id'],
+                        $dist['total_amount'],
+                        $period,
+                    );
+                    $totalDistributed += $dist['total_amount'];
+                }
+            }
+
+            if ($totalDistributed > 0) {
+                $fundAccountService->debit($totalDistributed);
+            }
+
             return $closing;
         });
     }

@@ -43,7 +43,10 @@ class ParameterSeeder extends Seeder
         ];
 
         foreach ($parameters as $parameter) {
-            Parameter::create($parameter);
+            Parameter::firstOrCreate(
+                ['key' => $parameter['key']],
+                $parameter,
+            );
         }
     }
 }

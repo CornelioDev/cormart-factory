@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\FundMemberResource\Pages;
 use App\Models\FundMember;
+use App\Models\Transaction;
 use App\Services\FundMemberService;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
@@ -12,12 +13,14 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Columns\BadgeColumn;
+use Filament\Support\RawJs;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Support\RawJs;
 use Filament\Tables\Table;
 
 class FundMemberResource extends Resource
@@ -85,6 +88,82 @@ class FundMemberResource extends Resource
         ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            Section::make('Datos del Miembro')
+                ->columns(3)
+                ->schema([
+                    TextEntry::make('name')
+                        ->label('Nombre'),
+
+                    TextEntry::make('type')
+                        ->label('Tipo')
+                        ->badge()
+                        ->color(fn (string $state): string => match ($state) {
+                            'capital' => 'primary',
+                            'in_kind' => 'gray',
+                        })
+                        ->formatStateUsing(fn (string $state): string => match ($state) {
+                            'capital' => 'Aportante de Capital',
+                            'in_kind' => 'Aportante en Naturaleza',
+                        }),
+
+                    TextEntry::make('contribution')
+                        ->label('Capital Aportado')
+                        ->money('DOP', locale: 'es_DO'),
+
+                    TextEntry::make('fund_percentage')
+                        ->label('% del Fondo')
+                        ->formatStateUsing(fn ($state): string => number_format((float) $state, 2))
+                        ->suffix('%'),
+
+                    TextEntry::make('joined_at')
+                        ->label('Miembro desde')
+                        ->date('d M Y'),
+
+                    TextEntry::make('active')
+                        ->label('Estado')
+                        ->badge()
+                        ->formatStateUsing(fn (bool $state): string => $state ? 'Activo' : 'Inactivo')
+                        ->color(fn (bool $state): string => $state ? 'success' : 'danger'),
+                ]),
+
+            Section::make('Resumen de Ganancias')
+                ->columns(3)
+                ->schema([
+                    TextEntry::make('total_earned')
+                        ->label('Total Ganado')
+                        ->getStateUsing(fn (FundMember $record): string =>
+                            'RD$ ' . number_format($record->totalEarned(), 2, '.', ',')
+                        )
+                        ->color('success')
+                        ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                        ->size(TextEntry\TextEntrySize::Large),
+
+                    TextEntry::make('total_disbursed')
+                        ->label('Total Desembolsado')
+                        ->getStateUsing(fn (FundMember $record): string =>
+                            'RD$ ' . number_format($record->totalDisbursed(), 2, '.', ',')
+                        )
+                        ->color('warning')
+                        ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                        ->size(TextEntry\TextEntrySize::Large),
+
+                    TextEntry::make('earnings_balance')
+                        ->label('Balance Disponible')
+                        ->getStateUsing(fn (FundMember $record): string =>
+                            'RD$ ' . number_format($record->earningsBalance(), 2, '.', ',')
+                        )
+                        ->color(fn (FundMember $record): string =>
+                            $record->earningsBalance() > 0 ? 'primary' : 'gray'
+                        )
+                        ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                        ->size(TextEntry\TextEntrySize::Large),
+                ]),
+        ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -116,8 +195,24 @@ class FundMemberResource extends Resource
 
                 TextColumn::make('fund_percentage')
                     ->label('% del Fondo')
+                    ->formatStateUsing(fn ($state): string => number_format((float) $state, 2))
                     ->suffix('%')
                     ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('total_earned')
+                    ->label('Total Ganado')
+                    ->getStateUsing(fn (FundMember $record): float => $record->totalEarned())
+                    ->money('DOP', locale: 'es_DO')
+                    ->toggleable(),
+
+                TextColumn::make('earnings_balance')
+                    ->label('Balance Ganancias')
+                    ->getStateUsing(fn (FundMember $record): float => $record->earningsBalance())
+                    ->money('DOP', locale: 'es_DO')
+                    ->color(fn (FundMember $record): string =>
+                        $record->earningsBalance() > 0 ? 'success' : 'gray'
+                    )
                     ->toggleable(),
 
                 TextColumn::make('joined_at')
@@ -132,8 +227,15 @@ class FundMemberResource extends Resource
                     ->toggleable(),
             ])
             ->actions([
-                EditAction::make(),
+                ViewAction::make(),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            FundMemberResource\RelationManagers\EarningsTransactionsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
@@ -141,7 +243,7 @@ class FundMemberResource extends Resource
         return [
             'index'  => Pages\ListFundMembers::route('/'),
             'create' => Pages\CreateFundMember::route('/create'),
-            'edit'   => Pages\EditFundMember::route('/{record}/edit'),
+            'view'   => Pages\ViewFundMember::route('/{record}'),
         ];
     }
 }

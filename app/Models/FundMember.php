@@ -37,4 +37,33 @@ class FundMember extends Model
     {
         return $this->hasOne(User::class);
     }
+
+    public function earningDistributions(): HasMany
+    {
+        return $this->hasMany(Transaction::class)->where('type', 'earning_distribution');
+    }
+
+    public function earningsDisbursements(): HasMany
+    {
+        return $this->hasMany(Transaction::class)->where('type', 'member_disbursement');
+    }
+
+    public function totalEarned(): float
+    {
+        return round((float) $this->earningDistributions()
+            ->where('status', 'confirmed')
+            ->sum('amount'), 2);
+    }
+
+    public function totalDisbursed(): float
+    {
+        return round((float) $this->earningsDisbursements()
+            ->where('status', 'confirmed')
+            ->sum('amount'), 2);
+    }
+
+    public function earningsBalance(): float
+    {
+        return round($this->totalEarned() - $this->totalDisbursed(), 2);
+    }
 }

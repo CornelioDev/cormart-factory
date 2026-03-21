@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Financing;
+use App\Models\FundMember;
 use App\Models\Parameter;
 use App\Models\Supplier;
 use App\Models\Transaction;
@@ -58,6 +59,12 @@ class TransactionService
                     'issue_period' => now()->format('Y-m'),
                 ]));
 
+                // Comisión cobrada por adelantado — acreditar al fondo
+                $totalCommission = $financings->sum('commission');
+                if ($totalCommission > 0) {
+                    (new FundAccountService())->credit($totalCommission);
+                }
+
                 // Auto-generar gasto de impuesto sobre el monto desembolsado
                 $this->createTaxExpense($transaction, $data);
             } elseif ($data['type'] === 'collection') {
@@ -101,6 +108,9 @@ class TransactionService
                 'confirmed_at' => now(),
             ]);
 
+            // Debitar gasto del fondo
+            (new FundAccountService())->debit((float) $transaction->amount);
+
             return $transaction;
         });
     }
@@ -134,6 +144,9 @@ class TransactionService
             'confirmed_by'       => $registrant,
             'confirmed_at'       => now(),
         ]);
+
+        // Debitar gasto del fondo
+        (new FundAccountService())->debit($taxAmount);
     }
 
     /**
@@ -152,6 +165,70 @@ class TransactionService
         ]);
 
         return $transaction->fresh();
+    }
+
+    /**
+     * Crea una transacción de distribución de ganancias para un miembro (cierre mensual).
+     */
+    public function createEarningDistribution(int $fundMemberId, float $amount, string $period): Transaction
+    {
+        return Transaction::create([
+            'type'               => 'earning_distribution',
+            'status'             => 'confirmed',
+            'amount'             => round($amount, 2),
+            'transaction_number' => "DIST-{$period}-{$fundMemberId}",
+            'transaction_date'   => now(),
+            'fund_member_id'     => $fundMemberId,
+            'notes'              => "Distribución de ganancias período {$period}",
+            'registered_by'      => auth()->id(),
+            'confirmed_by'       => auth()->id(),
+            'confirmed_at'       => now(),
+        ]);
+    }
+
+    /**
+     * Registra un desembolso de ganancias a un miembro del fondo.
+     */
+    public function createMemberDisbursement(array $data): Transaction
+    {
+        return DB::transaction(function () use ($data) {
+            $member = FundMember::findOrFail($data['fund_member_id']);
+            $amount = (float) $data['amount'];
+
+            if ($amount <= 0) {
+                throw new \Exception('El monto debe ser mayor a cero.');
+            }
+
+            if ($amount > $member->earningsBalance()) {
+                throw new \Exception(
+                    'Monto excede el balance de ganancias disponible (RD$ '
+                    . number_format($member->earningsBalance(), 2, '.', ',') . ').'
+                );
+            }
+
+            $transaction = Transaction::create([
+                'type'               => 'member_disbursement',
+                'status'             => 'confirmed',
+                'amount'             => $amount,
+                'bank'               => $data['bank'],
+                'transaction_number' => $data['transaction_number'],
+                'transaction_date'   => $data['transaction_date'],
+                'fund_member_id'     => $member->id,
+                'notes'              => $data['notes'] ?? "Desembolso de ganancias a {$member->name}",
+                'registered_by'      => auth()->id(),
+                'confirmed_by'       => auth()->id(),
+                'confirmed_at'       => now(),
+            ]);
+
+            // Auto-generar gasto de impuesto
+            $this->createTaxExpense($transaction, [
+                'bank'             => $data['bank'],
+                'transaction_date' => $data['transaction_date'],
+                'registered_by'    => auth()->id(),
+            ]);
+
+            return $transaction;
+        });
     }
 
     /**

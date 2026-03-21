@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             TestUsersSeeder::class,
             RolePermissionsSeeder::class,
             FinancingAndTransactionSeeder::class,
+            FundAccountSeeder::class,
         ]);
     }
 }

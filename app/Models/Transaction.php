@@ -18,6 +18,7 @@ class Transaction extends Model
         'transaction_date',
         'company_id',
         'supplier_id',
+        'fund_member_id',
         'notes',
         'registered_by',
         'confirmed_by',
@@ -49,6 +50,11 @@ class Transaction extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    public function fundMember(): BelongsTo
+    {
+        return $this->belongsTo(FundMember::class);
+    }
+
     public function registeredBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'registered_by');
@@ -68,8 +74,10 @@ class Transaction extends Model
     public function getBeneficiario(): ?string
     {
         return match ($this->type) {
-            'expense' => $this->supplier?->name,
-            default   => $this->company?->name,
+            'expense'                => $this->supplier?->name,
+            'earning_distribution',
+            'member_disbursement'    => $this->fundMember?->name,
+            default                  => $this->company?->name,
         };
     }
 }

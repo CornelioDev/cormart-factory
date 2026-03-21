@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\TransactionResource\Pages;
 use App\Models\Company;
 use App\Models\Financing;
+use App\Models\FundMember;
 use App\Models\Transaction;
 use App\Services\TransactionService;
 use Filament\Forms\Components\DatePicker;
@@ -42,7 +43,7 @@ class TransactionResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery()
-            ->with(['company', 'supplier', 'financings.client']);
+            ->with(['company', 'supplier', 'fundMember', 'financings.client']);
         $user  = auth()->user();
 
         if ($user->hasRole('company_user')) {
@@ -284,16 +285,20 @@ class TransactionResource extends Resource
                         ->label('Tipo')
                         ->badge()
                         ->color(fn (string $state): string => match ($state) {
-                            'disbursement' => 'info',
-                            'collection'   => 'success',
-                            'expense'      => 'danger',
-                            default        => 'gray',
+                            'disbursement'          => 'info',
+                            'collection'            => 'success',
+                            'expense'               => 'danger',
+                            'earning_distribution'  => 'success',
+                            'member_disbursement'   => 'warning',
+                            default                 => 'gray',
                         })
                         ->formatStateUsing(fn (string $state): string => match ($state) {
-                            'disbursement' => 'Desembolso',
-                            'collection'   => 'Cobro',
-                            'expense'      => 'Gasto',
-                            default        => $state,
+                            'disbursement'          => 'Desembolso',
+                            'collection'            => 'Cobro',
+                            'expense'               => 'Gasto',
+                            'earning_distribution'  => 'Distribución',
+                            'member_disbursement'   => 'Desembolso a Miembro',
+                            default                 => $state,
                         }),
 
                     TextEntry::make('status')
@@ -337,7 +342,7 @@ class TransactionResource extends Resource
                 ]),
 
             Section::make('Financiamientos Asociados')
-                ->visible(fn ($record): bool => $record->type !== 'expense')
+                ->visible(fn ($record): bool => ! in_array($record->type, ['expense', 'earning_distribution', 'member_disbursement']))
                 ->schema([
                     RepeatableEntry::make('financings')
                         ->label('')
@@ -413,7 +418,8 @@ class TransactionResource extends Resource
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->where(function ($q) use ($search) {
                             $q->whereHas('company', fn ($q) => $q->where('name', 'like', "%{$search}%"))
-                              ->orWhereHas('supplier', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                              ->orWhereHas('supplier', fn ($q) => $q->where('name', 'like', "%{$search}%"))
+                              ->orWhereHas('fundMember', fn ($q) => $q->where('name', 'like', "%{$search}%"));
                         });
                     })
                     ->tooltip(function (Transaction $record): ?string {
@@ -454,16 +460,20 @@ class TransactionResource extends Resource
                     ->label('Tipo')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'disbursement' => 'info',
-                        'collection'   => 'success',
-                        'expense'      => 'danger',
-                        default        => 'gray',
+                        'disbursement'          => 'info',
+                        'collection'            => 'success',
+                        'expense'               => 'danger',
+                        'earning_distribution'  => 'success',
+                        'member_disbursement'   => 'warning',
+                        default                 => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'disbursement' => 'Desembolso',
-                        'collection'   => 'Cobro',
-                        'expense'      => 'Gasto',
-                        default        => $state,
+                        'disbursement'          => 'Desembolso',
+                        'collection'            => 'Cobro',
+                        'expense'               => 'Gasto',
+                        'earning_distribution'  => 'Distribución',
+                        'member_disbursement'   => 'Desembolso a Miembro',
+                        default                 => $state,
                     })
                     ->toggleable(),
             ])
@@ -471,9 +481,11 @@ class TransactionResource extends Resource
                 SelectFilter::make('type')
                     ->label('Tipo')
                     ->options([
-                        'disbursement' => 'Desembolso',
-                        'collection'   => 'Cobro',
-                        'expense'      => 'Gasto',
+                        'disbursement'          => 'Desembolso',
+                        'collection'            => 'Cobro',
+                        'expense'               => 'Gasto',
+                        'earning_distribution'  => 'Distribución',
+                        'member_disbursement'   => 'Desembolso a Miembro',
                     ]),
 
                 SelectFilter::make('status')
@@ -491,11 +503,41 @@ class TransactionResource extends Resource
                         'Banco Popular' => 'Banco Popular',
                     ]),
 
-                SelectFilter::make('supplier_id')
-                    ->label('Proveedor')
-                    ->relationship('supplier', 'name')
-                    ->searchable()
-                    ->preload(),
+                SelectFilter::make('beneficiario')
+                    ->label('Beneficiario')
+                    ->query(function (Builder $query, array $data): Builder {
+                        $value = $data['value'] ?? null;
+                        if (! $value) {
+                            return $query;
+                        }
+
+                        [$type, $id] = explode('_', $value, 2);
+
+                        return $query->where(match ($type) {
+                            'company'  => 'company_id',
+                            'supplier' => 'supplier_id',
+                            'member'   => 'fund_member_id',
+                        }, (int) $id);
+                    })
+                    ->options(function (): array {
+                        $companies = \App\Models\Company::orderBy('name')
+                            ->pluck('name', 'id')
+                            ->mapWithKeys(fn ($name, $id) => ["company_{$id}" => $name])
+                            ->toArray();
+
+                        $suppliers = \App\Models\Supplier::orderBy('name')
+                            ->pluck('name', 'id')
+                            ->mapWithKeys(fn ($name, $id) => ["supplier_{$id}" => $name])
+                            ->toArray();
+
+                        $members = FundMember::orderBy('name')
+                            ->pluck('name', 'id')
+                            ->mapWithKeys(fn ($name, $id) => ["member_{$id}" => $name])
+                            ->toArray();
+
+                        return $companies + $suppliers + $members;
+                    })
+                    ->searchable(),
             ])
             ->actions([
                 Action::make('confirm')
