@@ -8,7 +8,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class FinancingPipelineWidget extends BaseWidget
 {
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 0;
 
     protected function getColumns(): int
     {

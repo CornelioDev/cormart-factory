@@ -30,8 +30,8 @@ class ShieldSeeder extends Seeder
         );
 
         $user = User::firstOrCreate(
-            ['email' => 'cornelio@proton.me'],
-            ['name' => 'José Cornelio', 'password' => bcrypt('admin123')]
+            ['email' => 'admin@test.com'],
+            ['name' => 'Admin Test', 'password' => bcrypt('admin123')]
         );
         $user->assignRole('super_admin');
     }

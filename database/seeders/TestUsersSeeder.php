@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Company;
+use App\Models\FundMember;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -18,10 +19,12 @@ class TestUsersSeeder extends Seeder
         $operator->assignRole('operator');
 
         // Miembro del fondo
+        $fundMember = FundMember::where('name', 'Miembro Prueba')->first();
         $member = User::firstOrCreate(
             ['email' => 'miembro@test.com'],
-            ['name' => 'Miembro Test', 'password' => bcrypt('password')]
+            ['name' => 'Miembro Test', 'fund_member_id' => $fundMember?->id, 'password' => bcrypt('password')]
         );
+        $member->update(['fund_member_id' => $fundMember?->id]);
         $member->assignRole('member');
 
         // Usuario externo de Cormart Soluciones

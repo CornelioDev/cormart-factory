@@ -30,5 +30,14 @@ class FundMemberSeeder extends Seeder
             'active'          => true,
             'joined_at'       => '2025-01-01',
         ]);
+
+        FundMember::create([
+            'name'            => 'Aportante Naturaleza',
+            'type'            => 'in_kind',
+            'contribution'    => 0,
+            'fund_percentage' => 0,
+            'active'          => true,
+            'joined_at'       => '2025-01-01',
+        ]);
     }
 }

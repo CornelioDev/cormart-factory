@@ -82,7 +82,7 @@
 ### Cierre de versión
 - [x] Tests actualizados para todos los cambios de v0.7.0
 - [x] Visto bueno del usuario
-- [ ] `git commit` + `git tag v0.7.0` + `git push --tags`
+- [x] `git commit` + `git tag v0.7.0` + `git push --tags`
 
 ---
 

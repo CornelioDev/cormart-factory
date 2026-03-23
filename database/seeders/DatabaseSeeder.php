@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             RolePermissionsSeeder::class,
             FinancingAndTransactionSeeder::class,
             FundAccountSeeder::class,
+            MonthlyClosingSeeder::class,
         ]);
     }
 }

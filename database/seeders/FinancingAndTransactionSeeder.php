@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\Financing;
+use App\Models\Supplier;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\Carbon;
@@ -36,47 +37,72 @@ class FinancingAndTransactionSeeder extends Seeder
         $techpro    = Client::where('name', 'TechPro Distribuciones SA')->first();
         $sistemas   = Client::where('name', 'Sistemas Integrados del Caribe')->first();
 
-        // ── 1. COBRADOS (feb 14 – mar 8) ────────────────────────────────────
-        // Cormart: Innovatech + Caribbean cobrados juntos el Mar 1
-        $f1 = $this->financing($cormart, $innovatech, 80000,  '2026-02-14', 15, 'collected', '2026-02-15', '2026-03-01', $cormart_user->id);
-        $f2 = $this->financing($cormart, $caribbean,  200000, '2026-02-15', 15, 'collected', '2026-02-16', '2026-03-01', $cormart_user->id);
+        $dgii = Supplier::where('name', 'DGII')->first();
 
-        // Cormart: Grupo Rodriguez cobrado Mar 5 (cobro individual)
-        $f3 = $this->financing($cormart, $rodriguez,  120000, '2026-02-20', 15, 'collected', '2026-02-21', '2026-03-05', $operator->id);
+        // ── 1. COBRADOS EN ENERO 2026 ──────────────────────────────────────
+        $f1 = $this->financing($cormart, $innovatech, 95000,  '2026-01-05', 15, 'collected', '2026-01-06', '2026-01-22', $cormart_user->id);
+        $f2 = $this->financing($ysetech, $datacenter, 120000, '2026-01-08', 15, 'collected', '2026-01-09', '2026-01-25', $ysetech_user->id);
 
-        // Ysetech: DataCenter + TechPro desembolsados juntos, cobrados juntos Mar 8
-        $f4 = $this->financing($ysetech, $datacenter, 150000, '2026-02-17', 15, 'collected', '2026-02-18', '2026-03-08', $ysetech_user->id);
-        $f5 = $this->financing($ysetech, $techpro,    95000,  '2026-02-20', 15, 'collected', '2026-02-21', '2026-03-08', $ysetech_user->id);
+        $this->transaction('disbursement', $cormart, [$f1], 'BanReservas',  'DIS-C-0001', '2026-01-06', 'confirmed', $admin);
+        $this->transaction('collection',   $cormart, [$f1], 'BHD',          'COB-C-0001', '2026-01-22', 'confirmed', $admin);
+        $this->transaction('disbursement', $ysetech, [$f2], 'BHD',          'DIS-Y-0001', '2026-01-09', 'confirmed', $admin);
+        $this->transaction('collection',   $ysetech, [$f2], 'BHD',          'COB-Y-0001', '2026-01-25', 'confirmed', $admin);
 
-        // TX desembolsos cobrados
-        $this->transaction('disbursement', $cormart, [$f1, $f2], 'BanReservas',   'DIS-C-0001', '2026-02-16', 'confirmed', $admin);
-        $this->transaction('collection',   $cormart, [$f1, $f2], 'BHD',            'COB-C-0001', '2026-03-01', 'confirmed', $admin);
+        // ── 2. COBRADOS EN FEBRERO 2026 ────────────────────────────────────
+        $f3 = $this->financing($cormart, $caribbean,  200000, '2026-01-20', 15, 'collected', '2026-01-21', '2026-02-05', $cormart_user->id);
+        $f4 = $this->financing($cormart, $rodriguez,  80000,  '2026-01-25', 15, 'collected', '2026-01-26', '2026-02-12', $operator->id);
+        $f5 = $this->financing($ysetech, $techpro,    150000, '2026-01-28', 15, 'collected', '2026-01-29', '2026-02-15', $ysetech_user->id);
 
-        $this->transaction('disbursement', $cormart, [$f3],      'Banco Popular',  'DIS-C-0002', '2026-02-21', 'confirmed', $admin);
-        $this->transaction('collection',   $cormart, [$f3],      'BanReservas',    'COB-C-0002', '2026-03-05', 'confirmed', $admin);
+        $this->transaction('disbursement', $cormart, [$f3],    'BanReservas',  'DIS-C-0002', '2026-01-21', 'confirmed', $admin);
+        $this->transaction('collection',   $cormart, [$f3],    'BanReservas',  'COB-C-0002', '2026-02-05', 'confirmed', $admin);
+        $this->transaction('disbursement', $cormart, [$f4],    'Banco Popular', 'DIS-C-0003', '2026-01-26', 'confirmed', $admin);
+        $this->transaction('collection',   $cormart, [$f4],    'BHD',           'COB-C-0003', '2026-02-12', 'confirmed', $admin);
+        $this->transaction('disbursement', $ysetech, [$f5],    'BHD',           'DIS-Y-0002', '2026-01-29', 'confirmed', $admin);
+        $this->transaction('collection',   $ysetech, [$f5],    'BHD',           'COB-Y-0002', '2026-02-15', 'confirmed', $admin);
 
-        $this->transaction('disbursement', $ysetech, [$f4, $f5], 'BHD',            'DIS-Y-0001', '2026-02-18', 'confirmed', $admin);
-        $this->transaction('collection',   $ysetech, [$f4, $f5], 'BHD',            'COB-Y-0001', '2026-03-08', 'confirmed', $admin);
+        // ── 3. COBRADOS EN MARZO 2026 ──────────────────────────────────────
+        $f6 = $this->financing($cormart, $innovatech, 110000, '2026-02-14', 15, 'collected', '2026-02-15', '2026-03-03', $cormart_user->id);
+        $f7 = $this->financing($ysetech, $datacenter, 85000,  '2026-02-18', 15, 'collected', '2026-02-19', '2026-03-08', $ysetech_user->id);
 
-        // ── 2. DESEMBOLSADOS (en calle, vencen después del 11/Mar) ──────────
-        $f6 = $this->financing($cormart, $rodriguez,  90000, '2026-03-01', 30, 'disbursed', '2026-03-03', null, $cormart_user->id);
-        $f7 = $this->financing($ysetech, $sistemas,   60000, '2026-03-03', 30, 'disbursed', '2026-03-05', null, $ysetech_user->id);
-        $f8 = $this->financing($cormart, $innovatech, 55000, '2026-03-06', 30, 'disbursed', '2026-03-07', null, $operator->id);
-        $f9 = $this->financing($ysetech, $datacenter, 75000, '2026-03-07', 30, 'disbursed', '2026-03-08', null, $ysetech_user->id);
+        $this->transaction('disbursement', $cormart, [$f6], 'BanReservas',  'DIS-C-0004', '2026-02-15', 'confirmed', $admin);
+        $this->transaction('collection',   $cormart, [$f6], 'BHD',          'COB-C-0004', '2026-03-03', 'confirmed', $admin);
+        $this->transaction('disbursement', $ysetech, [$f7], 'BHD',          'DIS-Y-0003', '2026-02-19', 'confirmed', $admin);
+        $this->transaction('collection',   $ysetech, [$f7], 'BHD',          'COB-Y-0003', '2026-03-08', 'confirmed', $admin);
 
-        $this->transaction('disbursement', $cormart, [$f6], 'BanReservas',  'DIS-C-0003', '2026-03-03', 'confirmed', $admin);
-        $this->transaction('disbursement', $ysetech, [$f7], 'Banco Popular', 'DIS-Y-0002', '2026-03-05', 'confirmed', $admin);
-        $this->transaction('disbursement', $cormart, [$f8], 'BHD',           'DIS-C-0004', '2026-03-07', 'confirmed', $admin);
-        $this->transaction('disbursement', $ysetech, [$f9], 'BanReservas',  'DIS-Y-0003', '2026-03-08', 'confirmed', $admin);
+        // ── 4. DESEMBOLSADOS (en calle) ────────────────────────────────────
+        $f8  = $this->financing($cormart, $rodriguez,  90000, '2026-03-01', 30, 'disbursed', '2026-03-03', null, $cormart_user->id);
+        $f9  = $this->financing($ysetech, $sistemas,   60000, '2026-03-03', 30, 'disbursed', '2026-03-05', null, $ysetech_user->id);
+        $f10 = $this->financing($cormart, $innovatech, 55000, '2026-03-06', 30, 'disbursed', '2026-03-07', null, $operator->id);
+        $f11 = $this->financing($ysetech, $datacenter, 75000, '2026-03-07', 30, 'disbursed', '2026-03-08', null, $ysetech_user->id);
+
+        $this->transaction('disbursement', $cormart, [$f8],  'BanReservas',  'DIS-C-0005', '2026-03-03', 'confirmed', $admin);
+        $this->transaction('disbursement', $ysetech, [$f9],  'Banco Popular', 'DIS-Y-0004', '2026-03-05', 'confirmed', $admin);
+        $this->transaction('disbursement', $cormart, [$f10], 'BHD',           'DIS-C-0006', '2026-03-07', 'confirmed', $admin);
+        $this->transaction('disbursement', $ysetech, [$f11], 'BanReservas',  'DIS-Y-0005', '2026-03-08', 'confirmed', $admin);
 
         // Cobro pendiente registrado por Ysetech user (sin confirmar)
-        $this->transaction('collection', $ysetech, [$f9], 'BHD', 'COB-Y-PEND-001', '2026-03-11', 'pending', null, $ysetech_user);
+        $this->transaction('collection', $ysetech, [$f11], 'BHD', 'COB-Y-PEND-001', '2026-03-11', 'pending', null, $ysetech_user);
 
-        // ── 3. SOLICITADOS (esperando desembolso) ────────────────────────────
+        // ── 5. SOLICITADOS (esperando desembolso) ──────────────────────────
         $this->financing($cormart, $caribbean,  45000,  '2026-03-08', 30, 'solicited', null, null, $cormart_user->id);
         $this->financing($ysetech, $techpro,    110000, '2026-03-09', 30, 'solicited', null, null, $ysetech_user->id);
         $this->financing($cormart, $innovatech, 70000,  '2026-03-10', 30, 'solicited', null, null, $cormart_user->id);
         $this->financing($ysetech, $sistemas,   85000,  '2026-03-11', 30, 'solicited', null, null, $operator->id);
+
+        // ── 6. GASTOS OPERATIVOS ───────────────────────────────────────────
+        $supplierId = $dgii?->id;
+
+        // Enero 2026
+        $this->expense(3000.00,  '2026-01-15', 'EXP-001', 'Impuesto desembolso Innovatech',  $supplierId, $admin);
+        $this->expense(2500.00,  '2026-01-18', 'EXP-002', 'Impuesto desembolso DataCenter',  $supplierId, $admin);
+
+        // Febrero 2026
+        $this->expense(4200.00,  '2026-02-10', 'EXP-003', 'Impuesto desembolsos enero',      $supplierId, $admin);
+        $this->expense(1800.00,  '2026-02-20', 'EXP-004', 'Gastos bancarios febrero',        $supplierId, $admin);
+
+        // Marzo 2026
+        $this->expense(5100.00,  '2026-03-05', 'EXP-005', 'Impuesto desembolsos febrero',    $supplierId, $admin);
+        $this->expense(2300.00,  '2026-03-12', 'EXP-006', 'Gastos operativos marzo',         $supplierId, $admin);
     }
 
     private function financing(
@@ -106,6 +132,10 @@ class FinancingAndTransactionSeeder extends Seeder
             'status'          => $status,
             'registered_by'   => $registeredBy,
         ];
+
+        if ($status === 'collected') {
+            $data['collected_amount'] = $amount;
+        }
 
         if ($disbursedAt) {
             $data['disbursed_at'] = Carbon::parse($disbursedAt);
@@ -160,5 +190,28 @@ class FinancingAndTransactionSeeder extends Seeder
         }
 
         return $tx;
+    }
+
+    private function expense(
+        float $amount,
+        string $date,
+        string $txNumber,
+        string $notes,
+        ?int $supplierId,
+        User $admin
+    ): void {
+        Transaction::create([
+            'type'               => 'expense',
+            'amount'             => $amount,
+            'bank'               => 'BanReservas',
+            'transaction_number' => $txNumber,
+            'transaction_date'   => Carbon::parse($date),
+            'status'             => 'confirmed',
+            'notes'              => $notes,
+            'supplier_id'        => $supplierId,
+            'registered_by'      => $admin->id,
+            'confirmed_by'       => $admin->id,
+            'confirmed_at'       => Carbon::parse($date),
+        ]);
     }
 }
