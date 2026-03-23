@@ -2,7 +2,6 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Financing;
 use App\Models\FundAccount;
 use App\Models\FundMember;
 use App\Models\Transaction;
@@ -20,25 +19,26 @@ class BankBalanceWidget extends BaseWidget
 
     protected function getStats(): array
     {
+        $fundBalance = (float) FundAccount::instance()->balance;
+
         $totalCapital = (float) FundMember::where('type', 'capital')
             ->where('active', true)
             ->sum('contribution');
 
-        // Capital desplegado: dinero prestado aún no cobrado
-        $capitalDeployed = (float) Financing::whereIn('status', ['disbursed', 'partially_collected'])
-            ->sum('transfer_amount');
+        // Flujo de caja real: solo transacciones confirmadas
+        $collections = (float) Transaction::where('type', 'collection')
+            ->where('status', 'confirmed')->sum('amount');
 
-        $fundBalance = (float) FundAccount::instance()->balance;
+        $disbursements = (float) Transaction::where('type', 'disbursement')
+            ->where('status', 'confirmed')->sum('amount');
 
-        // Ganancias distribuidas a miembros pero no desembolsadas aún
-        $memberEarnings = (float) Transaction::where('type', 'earning_distribution')
-            ->where('status', 'confirmed')
-            ->sum('amount')
-            - (float) Transaction::where('type', 'member_disbursement')
-            ->where('status', 'confirmed')
-            ->sum('amount');
+        $expenses = (float) Transaction::where('type', 'expense')
+            ->where('status', 'confirmed')->sum('amount');
 
-        $estimatedBank = $totalCapital - $capitalDeployed + $fundBalance + $memberEarnings;
+        $memberDisbursements = (float) Transaction::where('type', 'member_disbursement')
+            ->where('status', 'confirmed')->sum('amount');
+
+        $estimatedBank = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements;
 
         return [
             Stat::make('Ganancias del Fondo', 'RD$ ' . number_format($fundBalance, 2, '.', ','))
