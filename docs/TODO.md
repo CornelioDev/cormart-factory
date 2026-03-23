@@ -39,34 +39,34 @@
 ### Cierre de versión
 - [x] Testing manual completado (super_admin)
 - [x] Visto bueno del usuario
-- [ ] `git commit` + `git tag v0.5.0` + `git push --tags`
+- [x] `git commit` + `git tag v0.5.0` + `git push --tags`
 
 ---
 
-## v0.6.0 — Cuenta de Ganancias y Desembolsos a Miembros
+## v0.6.0 — Cuenta de Ganancias y Desembolsos a Miembros ✅
 
 ### Base de datos
-- [ ] Migración: agregar `member_disbursement` al enum `transactions.type`
-- [ ] Migración: agregar `fund_member_id` (nullable FK → fund_members) a `transactions`
+- [x] Migración: agregar `member_disbursement` al enum `transactions.type`
+- [x] Migración: agregar `fund_member_id` (nullable FK → fund_members) a `transactions`
 
 ### Modelos
-- [ ] `FundMember`: método `earningsBalance(): float`
-- [ ] `FundMember`: método `totalEarned(): float`
-- [ ] `FundMember`: método `earningsDisbursements()` (HasMany)
-- [ ] `Transaction`: relación `fundMember()` (BelongsTo)
+- [x] `FundMember`: método `earningsBalance(): float`
+- [x] `FundMember`: método `totalEarned(): float`
+- [x] `FundMember`: método `earningsDisbursements()` (HasMany)
+- [x] `Transaction`: relación `fundMember()` (BelongsTo)
 
 ### Services
-- [ ] `TransactionService`: método `createMemberDisbursement()` con validación de balance
-- [ ] `TransactionService`: auto-generar expense en `member_disbursement` (mismo `tax_pct`)
+- [x] `TransactionService`: método `createMemberDisbursement()` con validación de balance
+- [x] `TransactionService`: auto-generar expense en `member_disbursement` (mismo `tax_pct`)
 
 ### Filament UI
-- [ ] `FundMemberResource`: columnas `earnings_balance` y `total_earned` en tabla
-- [ ] `FundMemberResource`: action "Desembolsar Ganancias" (super_admin, modal con monto/banco/referencia)
+- [x] `FundMemberResource`: columnas `earnings_balance` y `total_earned` en tabla
+- [x] `FundMemberResource`: action "Desembolsar Ganancias" (super_admin, modal con monto/banco/referencia)
 
 ### Cierre de versión
-- [ ] Tests actualizados para todos los cambios de v0.6.0
-- [ ] Visto bueno del usuario
-- [ ] `git commit` + `git tag v0.6.0` + `git push --tags`
+- [x] Tests actualizados para todos los cambios de v0.6.0
+- [x] Visto bueno del usuario
+- [x] `git commit` + `git tag v0.6.0` + `git push --tags`
 
 ---
 

@@ -1,6 +1,6 @@
 # Roadmap Cormart Factory → v1.0.0
 
-> Actualizado: 2026-03-19 | Estado actual: **v0.4.1**
+> Actualizado: 2026-03-23 | Estado actual: **v0.6.1**
 
 ---
 
@@ -140,8 +140,8 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 
 | Versión | Foco | Estado |
 |---|---|---|
-| **v0.5.0** | Gastos + impuesto automático de desembolso | Pendiente |
-| **v0.6.0** | Cuenta de ganancias + desembolsos a miembros | Pendiente |
+| **v0.5.0** | Gastos + impuesto automático de desembolso | ✅ Completado |
+| **v0.6.0** | Cuenta de ganancias + desembolsos a miembros | ✅ Completado |
 | **v0.7.0** | Perfil de miembro — estado de cuenta | Pendiente |
 | **v0.8.0** | Dashboard financiero para miembros | Pendiente |
 | **v0.9.0** | Tests, bug fixes, preparación producción | Pendiente |
