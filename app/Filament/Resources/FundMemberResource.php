@@ -234,6 +234,7 @@ class FundMemberResource extends Resource
     public static function getRelations(): array
     {
         return [
+            FundMemberResource\RelationManagers\ClosingDistributionsRelationManager::class,
             FundMemberResource\RelationManagers\EarningsTransactionsRelationManager::class,
         ];
     }

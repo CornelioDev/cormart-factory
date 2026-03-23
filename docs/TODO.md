@@ -70,19 +70,18 @@
 
 ---
 
-## v0.7.0 — Perfil de Miembro (Estado de Cuenta)
+## v0.7.0 — Perfil de Miembro (Estado de Cuenta) ✅
 
 ### Filament UI
-- [ ] `MemberAccountPage`: nueva página con stats de capital, ganancias, balance
-- [ ] `MemberAccountPage`: tabla de ClosingDistributions (historial de ingresos)
-- [ ] `MemberAccountPage`: tabla de member_disbursements (historial de pagos recibidos)
-- [ ] `MemberAccountPage`: action "Registrar Desembolso" (super_admin only)
-- [ ] `MemberAccountPage`: acceso de `member` restringido a su propio perfil
-- [ ] `MonthlyClosingResource` ViewPage: tabla de distribuciones por miembro en el cierre
+- [x] `ClosingDistributionsRelationManager`: tabla de historial de distribuciones en ViewFundMember
+- [x] `MemberAccountPage`: página de redirección "Estado de Cuenta" para rol `member`
+- [x] `FundMemberPolicy`: acceso de `member` restringido a su propio registro
+- [x] `RolePermissionsSeeder`: permisos `view_fund::member` y `page_MemberAccountPage` para rol `member`
+- [x] `MonthlyClosingResource` ViewPage: tabla de distribuciones por miembro en el cierre
 
 ### Cierre de versión
-- [ ] Tests actualizados para todos los cambios de v0.7.0
-- [ ] Visto bueno del usuario
+- [x] Tests actualizados para todos los cambios de v0.7.0
+- [x] Visto bueno del usuario
 - [ ] `git commit` + `git tag v0.7.0` + `git push --tags`
 
 ---

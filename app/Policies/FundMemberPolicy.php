@@ -23,6 +23,10 @@ class FundMemberPolicy
      */
     public function view(User $user, FundMember $fundMember): bool
     {
+        if ($user->hasRole('member')) {
+            return $user->fund_member_id === $fundMember->id;
+        }
+
         return $user->can('view_fund::member');
     }
 

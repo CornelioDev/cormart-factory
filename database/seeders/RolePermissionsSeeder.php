@@ -25,14 +25,16 @@ class RolePermissionsSeeder extends Seeder
             'page_CuentasPorPagarPage',
         ]);
 
-        // MEMBER — solo lectura
+        // MEMBER — solo lectura + acceso a su propio perfil
         $member = Role::findByName('member');
         $member->syncPermissions([
             'view_any_financing', 'view_financing',
             'view_any_monthly::closing', 'view_monthly::closing',
+            'view_fund::member',
             'widget_CapitalSummaryWidget',
             'widget_FinancingPipelineWidget',
             'page_CuentasPorCobrarPage',
+            'page_MemberAccountPage',
         ]);
 
         // COMPANY USER — solo su compañía
