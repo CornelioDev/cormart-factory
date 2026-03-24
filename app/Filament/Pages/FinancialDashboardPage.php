@@ -2,7 +2,6 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\Company;
 use App\Models\Financing;
 use App\Models\FundAccount;
 use App\Models\FundMember;
@@ -25,7 +24,7 @@ class FinancialDashboardPage extends Page
     public ?array $snapshot = null;
     public array $chartData = [];
     public array $financingsChartData = [];
-    public array $companyChartData = [];
+    public array $cashflowChartData = [];
 
     public static function canAccess(): bool
     {
@@ -38,12 +37,13 @@ class FinancialDashboardPage extends Page
         $this->loadSnapshot();
         $this->chartData = $this->getChartData();
         $this->financingsChartData = $this->getFinancingsChartData();
-        $this->companyChartData = $this->getCompanyChartData();
+        $this->cashflowChartData = $this->getCashflowChartData();
     }
 
     public function updatedSelectedPeriod(): void
     {
         $this->loadSnapshot();
+        $this->cashflowChartData = $this->getCashflowChartData();
     }
 
     public function getPeriodOptions(): array
@@ -257,25 +257,105 @@ class FinancialDashboardPage extends Page
         return ['labels' => $labels, 'collected' => $collected, 'disbursed' => $disbursed];
     }
 
-    public function getCompanyChartData(): array
+    public function getCashflowChartData(): array
     {
-        $companyShare = Financing::where('status', '!=', 'cancelled')
-            ->join('companies', 'companies.id', '=', 'financings.company_id')
-            ->selectRaw('companies.name, SUM(financings.amount) as total')
-            ->groupBy('companies.name')
-            ->orderByDesc('total')
+        $period = $this->selectedPeriod ?? now()->format('Y-m');
+        [$year, $month] = explode('-', $period);
+
+        $startDate = Carbon::createFromDate($year, $month, 1)->startOfDay();
+        $endDate   = $startDate->copy()->endOfMonth();
+        $today     = now()->endOfDay();
+        $lastDate  = $endDate->lt($today) ? $endDate : $today;
+
+        // Saldo inicial: capital + todas las transacciones confirmadas antes del período
+        $totalCapital = (float) FundMember::where('type', 'capital')
+            ->where('active', true)
+            ->sum('contribution');
+
+        $priorCollections = (float) Transaction::where('type', 'collection')
+            ->where('status', 'confirmed')
+            ->where('transaction_date', '<', $startDate)
+            ->sum('amount');
+
+        $priorDisbursements = (float) Transaction::where('type', 'disbursement')
+            ->where('status', 'confirmed')
+            ->where('transaction_date', '<', $startDate)
+            ->sum('amount');
+
+        $priorExpenses = (float) Transaction::where('type', 'expense')
+            ->where('status', 'confirmed')
+            ->where('transaction_date', '<', $startDate)
+            ->sum('amount');
+
+        $priorMemberDisbursements = (float) Transaction::where('type', 'member_disbursement')
+            ->where('status', 'confirmed')
+            ->where('transaction_date', '<', $startDate)
+            ->sum('amount');
+
+        $openingBalance = $totalCapital + $priorCollections - $priorDisbursements - $priorExpenses - $priorMemberDisbursements;
+
+        // Transacciones del período agrupadas por día
+        $transactions = Transaction::where('status', 'confirmed')
+            ->whereBetween('transaction_date', [$startDate, $lastDate])
+            ->selectRaw('DATE(transaction_date) as tx_date, type, SUM(amount) as total')
+            ->groupBy('tx_date', 'type')
+            ->orderBy('tx_date')
             ->get();
 
-        if ($companyShare->isEmpty()) {
-            return ['labels' => [], 'data' => []];
+        $dailyFlows = [];
+        foreach ($transactions as $tx) {
+            $date = $tx->tx_date;
+            if (! isset($dailyFlows[$date])) {
+                $dailyFlows[$date] = ['inflows' => 0, 'outflows' => 0];
+            }
+
+            if ($tx->type === 'collection') {
+                $dailyFlows[$date]['inflows'] += (float) $tx->total;
+            } else {
+                $dailyFlows[$date]['outflows'] += (float) $tx->total;
+            }
         }
 
-        $colors = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'];
+        $labels   = [];
+        $balances = [];
+        $inflows  = [];
+        $outflows = [];
+
+        $runningBalance = $openingBalance;
+        $currentDate    = $startDate->copy();
+
+        while ($currentDate->lte($lastDate)) {
+            $dateStr = $currentDate->format('Y-m-d');
+            $dayLabel = $currentDate->format('d M');
+
+            $dayIn  = $dailyFlows[$dateStr]['inflows'] ?? 0;
+            $dayOut = $dailyFlows[$dateStr]['outflows'] ?? 0;
+
+            $runningBalance += $dayIn - $dayOut;
+
+            $labels[]   = $dayLabel;
+            $balances[] = round($runningBalance, 2);
+            $inflows[]  = round($dayIn, 2);
+            $outflows[] = round($dayOut * -1, 2);
+
+            $currentDate->addDay();
+        }
+
+        $totalInflows  = array_sum($inflows);
+        $totalOutflows = array_sum(array_map('abs', $outflows));
+        $totalMoved    = $totalInflows + $totalOutflows;
+        $avgBalance    = count($balances) > 0 ? array_sum($balances) / count($balances) : 0;
 
         return [
-            'labels' => $companyShare->pluck('name')->toArray(),
-            'data'   => $companyShare->pluck('total')->map(fn ($v) => (float) $v)->toArray(),
-            'colors' => array_slice($colors, 0, $companyShare->count()),
+            'labels'         => $labels,
+            'balances'       => $balances,
+            'inflows'        => $inflows,
+            'outflows'       => $outflows,
+            'opening'        => round($openingBalance, 2),
+            'total_inflows'  => round($totalInflows, 2),
+            'total_outflows' => round($totalOutflows, 2),
+            'total_moved'    => round($totalMoved, 2),
+            'avg_balance'    => round($avgBalance, 2),
         ];
     }
 }

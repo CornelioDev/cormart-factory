@@ -265,80 +265,83 @@
             </div>
         </div>
 
-        {{-- ══ PARTICIPACIÓN: Pie chart + Tabla distribuciones ══ --}}
-        <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
-            {{-- Pie chart por compañía --}}
-            <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
-                <div class="fd-header" style="padding:10px 16px">
-                    <h3 class="fd-title fd-section-title">Participación por Compañía</h3>
-                    <p class="fd-subtitle fd-section-subtitle">Monto total de financiamientos</p>
-                </div>
-                <div style="padding:10px 16px 16px">
-                    @if(count($companyChartData['labels'] ?? []) > 0)
-                        <canvas id="companyPieChart" style="width:100%;height:280px"></canvas>
-                    @else
-                        <div style="text-align:center;padding:48px 0">
-                            <p class="fd-muted" style="font-size:14px">No hay datos disponibles.</p>
-                        </div>
-                    @endif
+        {{-- ══ CASHFLOW (ancho completo) ══ --}}
+        <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden" style="margin-bottom:10px">
+            <div class="fd-header" style="padding:10px 16px">
+                <h3 class="fd-title fd-section-title">Flujo de Caja</h3>
+                <p class="fd-subtitle fd-section-subtitle">Saldo bancario estimado día a día · Entradas vs salidas</p>
+                <div style="display:flex;gap:16px;margin-top:6px;font-size:11px">
+                    <span class="fd-muted">Movido: <strong class="fd-text">RD$ {{ number_format($cashflowChartData['total_moved'] ?? 0, 2, '.', ',') }}</strong></span>
+                    <span class="fd-muted">Entradas: <strong class="fd-color-success">RD$ {{ number_format($cashflowChartData['total_inflows'] ?? 0, 2, '.', ',') }}</strong></span>
+                    <span class="fd-muted">Salidas: <strong class="fd-color-danger">RD$ {{ number_format($cashflowChartData['total_outflows'] ?? 0, 2, '.', ',') }}</strong></span>
+                    <span class="fd-muted">Promedio: <strong class="fd-color-primary">RD$ {{ number_format($cashflowChartData['avg_balance'] ?? 0, 2, '.', ',') }}</strong></span>
                 </div>
             </div>
-
-            {{-- Tabla de distribuciones --}}
-            <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
-                <div class="fd-header" style="padding:10px 16px">
-                    <h3 class="fd-title fd-section-title">Desglose por Miembro</h3>
-                    <p class="fd-subtitle fd-section-subtitle">Distribución del período seleccionado</p>
-                </div>
-
-                @if(count($snapshot['distributions'] ?? []) > 0)
-                    <table style="width:100%;font-size:14px">
-                        <thead>
-                            <tr class="fd-thead" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">
-                                <th style="padding:12px 24px;text-align:left">Miembro</th>
-                                <th style="padding:12px 16px;text-align:left">Tipo</th>
-                                <th style="padding:12px 16px;text-align:right">Fijo</th>
-                                <th style="padding:12px 16px;text-align:right">Variable</th>
-                                <th style="padding:12px 24px;text-align:right">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody class="fd-tbody-divider">
-                            @foreach($snapshot['distributions'] as $dist)
-                            <tr>
-                                <td class="fd-text" style="padding:12px 24px;font-weight:600">{{ $dist['name'] }}</td>
-                                <td style="padding:12px 16px">
-                                    <span class="{{ $dist['type'] === 'capital' ? 'fd-badge-capital' : 'fd-badge-inkind' }}"
-                                        style="display:inline-flex;align-items:center;border-radius:9999px;padding:2px 8px;font-size:12px;font-weight:600">
-                                        {{ $dist['type'] === 'capital' ? 'Capital' : 'Naturaleza' }}
-                                    </span>
-                                </td>
-                                <td class="fd-muted" style="padding:12px 16px;text-align:right">
-                                    {{ $dist['fixed_amount'] > 0 ? 'RD$ ' . number_format($dist['fixed_amount'], 2, '.', ',') : '—' }}
-                                </td>
-                                <td class="fd-muted" style="padding:12px 16px;text-align:right">
-                                    RD$ {{ number_format($dist['proportional_amount'], 2, '.', ',') }}
-                                </td>
-                                <td class="fd-text" style="padding:12px 24px;text-align:right;font-weight:700">
-                                    RD$ {{ number_format($dist['total_amount'], 2, '.', ',') }}
-                                </td>
-                            </tr>
-                            @endforeach
-                            <tr class="fd-row-alt">
-                                <td colspan="4" class="fd-muted" style="padding:12px 24px;font-weight:600">Reserva del fondo</td>
-                                <td class="fd-text" style="padding:12px 24px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['reserve'], 2, '.', ',') }}</td>
-                            </tr>
-                            <tr class="fd-row-green">
-                                <td colspan="4" class="fd-text" style="padding:12px 24px;font-weight:700">Total Comisiones</td>
-                                <td class="fd-color-success" style="padding:12px 24px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['total_commissions'], 2, '.', ',') }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div style="padding:10px 16px 16px">
+                @if(count($cashflowChartData['labels'] ?? []) > 0)
+                    <canvas id="cashflowChart" style="width:100%;height:280px"></canvas>
                 @else
                     <div style="text-align:center;padding:48px 0">
-                        <p class="fd-muted" style="font-size:14px">No hay distribuciones para este período.</p>
+                        <p class="fd-muted" style="font-size:14px">No hay transacciones en este período.</p>
                     </div>
                 @endif
             </div>
+        </div>
+
+        {{-- ══ Tabla de distribuciones (ancho completo) ══ --}}
+        <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
+            <div class="fd-header" style="padding:10px 16px">
+                <h3 class="fd-title fd-section-title">Desglose por Miembro</h3>
+                <p class="fd-subtitle fd-section-subtitle">Distribución del período seleccionado</p>
+            </div>
+
+            @if(count($snapshot['distributions'] ?? []) > 0)
+                <table style="width:100%;font-size:14px">
+                    <thead>
+                        <tr class="fd-thead" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">
+                            <th style="padding:12px 24px;text-align:left">Miembro</th>
+                            <th style="padding:12px 16px;text-align:left">Tipo</th>
+                            <th style="padding:12px 16px;text-align:right">Fijo</th>
+                            <th style="padding:12px 16px;text-align:right">Variable</th>
+                            <th style="padding:12px 24px;text-align:right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="fd-tbody-divider">
+                        @foreach($snapshot['distributions'] as $dist)
+                        <tr>
+                            <td class="fd-text" style="padding:12px 24px;font-weight:600">{{ $dist['name'] }}</td>
+                            <td style="padding:12px 16px">
+                                <span class="{{ $dist['type'] === 'capital' ? 'fd-badge-capital' : 'fd-badge-inkind' }}"
+                                    style="display:inline-flex;align-items:center;border-radius:9999px;padding:2px 8px;font-size:12px;font-weight:600">
+                                    {{ $dist['type'] === 'capital' ? 'Capital' : 'Naturaleza' }}
+                                </span>
+                            </td>
+                            <td class="fd-muted" style="padding:12px 16px;text-align:right">
+                                {{ $dist['fixed_amount'] > 0 ? 'RD$ ' . number_format($dist['fixed_amount'], 2, '.', ',') : '—' }}
+                            </td>
+                            <td class="fd-muted" style="padding:12px 16px;text-align:right">
+                                RD$ {{ number_format($dist['proportional_amount'], 2, '.', ',') }}
+                            </td>
+                            <td class="fd-text" style="padding:12px 24px;text-align:right;font-weight:700">
+                                RD$ {{ number_format($dist['total_amount'], 2, '.', ',') }}
+                            </td>
+                        </tr>
+                        @endforeach
+                        <tr class="fd-row-alt">
+                            <td colspan="4" class="fd-muted" style="padding:12px 24px;font-weight:600">Reserva del fondo</td>
+                            <td class="fd-text" style="padding:12px 24px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['reserve'], 2, '.', ',') }}</td>
+                        </tr>
+                        <tr class="fd-row-green">
+                            <td colspan="4" class="fd-text" style="padding:12px 24px;font-weight:700">Total Comisiones</td>
+                            <td class="fd-color-success" style="padding:12px 24px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['total_commissions'], 2, '.', ',') }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            @else
+                <div style="text-align:center;padding:48px 0">
+                    <p class="fd-muted" style="font-size:14px">No hay distribuciones para este período.</p>
+                </div>
+            @endif
         </div>
     @endif
 
@@ -346,7 +349,7 @@
     <script>
         const chartData = $wire.chartData;
         const financingsChartData = $wire.financingsChartData;
-        const companyChartData = $wire.companyChartData;
+        const cashflowChartData = $wire.cashflowChartData;
 
         const isDark = document.documentElement.classList.contains('dark');
         const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
@@ -438,34 +441,82 @@
             });
         }
 
-        // ── Pie chart: Participación por Compañía ──
-        const pieCtx = document.getElementById('companyPieChart');
-        if (pieCtx && companyChartData.labels && companyChartData.labels.length > 0) {
-            new Chart(pieCtx, {
-                type: 'doughnut',
+        // ── Cashflow chart ──
+        const cashCtx = document.getElementById('cashflowChart');
+        if (cashCtx && cashflowChartData.labels && cashflowChartData.labels.length > 0) {
+            new Chart(cashCtx, {
+                type: 'bar',
                 data: {
-                    labels: companyChartData.labels,
-                    datasets: [{
-                        data: companyChartData.data,
-                        backgroundColor: companyChartData.colors,
-                        borderWidth: 2,
-                        borderColor: isDark ? 'rgb(31, 41, 55)' : '#fff',
-                    }],
+                    labels: cashflowChartData.labels,
+                    datasets: [
+                        {
+                            label: 'Saldo Banco',
+                            data: cashflowChartData.balances,
+                            type: 'line',
+                            borderColor: '#ea580c',
+                            backgroundColor: 'rgba(234, 88, 12, 0.08)',
+                            fill: true,
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            tension: 0.3,
+                            order: 0,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Entradas',
+                            data: cashflowChartData.inflows,
+                            backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                            borderRadius: 3,
+                            barPercentage: 0.6,
+                            categoryPercentage: 0.7,
+                            order: 1,
+                            yAxisID: 'y1',
+                        },
+                        {
+                            label: 'Salidas',
+                            data: cashflowChartData.outflows,
+                            backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                            borderRadius: 3,
+                            barPercentage: 0.6,
+                            categoryPercentage: 0.7,
+                            order: 1,
+                            yAxisID: 'y1',
+                        },
+                    ],
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: textColor, padding: 16, usePointStyle: true } },
+                        legend: { position: 'bottom', labels: { color: textColor, padding: 12, usePointStyle: true, font: { size: 11 } } },
                         tooltip: {
                             callbacks: {
                                 label: function(ctx) {
-                                    const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                                    const pct = ((ctx.parsed / total) * 100).toFixed(1);
-                                    return ctx.label + ': ' + moneyFormat(ctx.parsed) + ' (' + pct + '%)';
+                                    const val = ctx.parsed.y;
+                                    if (ctx.dataset.label === 'Salidas') {
+                                        return ctx.dataset.label + ': ' + moneyFormat(Math.abs(val));
+                                    }
+                                    return ctx.dataset.label + ': ' + moneyFormat(val);
                                 }
                             }
                         }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 15 } },
+                        y: {
+                            position: 'left',
+                            grid: { color: gridColor },
+                            ticks: { color: textColor, font: { size: 10 }, callback: (v) => 'RD$ ' + (v / 1000).toFixed(0) + 'k' },
+                            title: { display: true, text: 'Saldo', color: textColor, font: { size: 10 } },
+                        },
+                        y1: {
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: textColor, font: { size: 10 }, callback: (v) => 'RD$ ' + (Math.abs(v) / 1000).toFixed(0) + 'k' },
+                            title: { display: true, text: 'Movimientos', color: textColor, font: { size: 10 } },
+                        },
                     },
                 },
             });
