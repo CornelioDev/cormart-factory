@@ -1,6 +1,6 @@
 # Roadmap Cormart Factory → v1.0.0
 
-> Actualizado: 2026-03-23 | Estado actual: **v0.6.1**
+> Actualizado: 2026-03-24 | Estado actual: **v0.8.0**
 
 ---
 
@@ -19,7 +19,7 @@ El sistema v0.4.1 tiene el flujo core completo: financiamientos, transacciones, 
 | 3 | Cuenta de ganancias por miembro (separada del capital) | v0.6.0 |
 | 4 | Desembolsos de ganancias a miembros (`member_disbursement`) | v0.6.0 |
 | 5 | Perfil de miembro con estado de cuenta (ingresos de cierres + desembolsos) | v0.7.0 |
-| 6 | Dashboard financiero personalizado para el rol `member` | v0.8.0 |
+| 6 | Dashboard financiero con KPIs, gráficos y comparativos | v0.8.0 |
 
 ---
 
@@ -99,16 +99,19 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 
 ---
 
-## v0.8.0 — Dashboard Financiero para Miembros
+## v0.8.0 — Dashboard Financiero
 
-**Objetivo:** Widgets personalizados para el rol `member`.
+**Objetivo:** Página dedicada de Dashboard Financiero con KPIs, gráficos y comparativos para super_admin y operator.
 
 ### Archivos clave
 | Archivo | Cambio |
 |---|---|
-| `app/Filament/Widgets/MemberAccountWidget.php` | Nuevo: balance, capital, % fondo, último cierre |
-| `app/Filament/Widgets/MemberDistributionsWidget.php` | Nuevo: tabla de últimos cierres del miembro |
-| `app/Filament/Widgets/CapitalSummaryWidget.php` | Agregar gastos/ganancia neta; ajustar acceso para excluir `member` |
+| `app/Filament/Pages/FinancialDashboardPage.php` | Nueva página: KPIs (Capital, Fondo, Comisiones, Proyecciones), gráficos (tendencia, barras, doughnut), tabla de distribuciones |
+| `resources/views/filament/pages/financial-dashboard-page.blade.php` | Vista Blade con Chart.js y diseño responsive |
+| `app/Filament/Widgets/CapitalSummaryWidget.php` | Eliminado (reemplazado por el dashboard) |
+| `app/Filament/Widgets/BankBalanceWidget.php` | Eliminado (reemplazado por el dashboard) |
+| `database/seeders/MonthlyClosingSeeder.php` | Nuevo: cierres de enero y febrero 2026 |
+| `database/seeders/FinancingAndTransactionSeeder.php` | Datos multi-mes con gastos operativos |
 
 ---
 
@@ -143,6 +146,6 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 | **v0.5.0** | Gastos + impuesto automático de desembolso | ✅ Completado |
 | **v0.6.0** | Cuenta de ganancias + desembolsos a miembros | ✅ Completado |
 | **v0.7.0** | Perfil de miembro — estado de cuenta | ✅ Completado |
-| **v0.8.0** | Dashboard financiero para miembros | Pendiente |
+| **v0.8.0** | Dashboard financiero | ✅ Completado |
 | **v0.9.0** | Tests, bug fixes, preparación producción | Pendiente |
 | **v1.0.0** | QA y lanzamiento | Pendiente |

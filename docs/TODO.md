@@ -86,18 +86,25 @@
 
 ---
 
-## v0.8.0 — Dashboard Financiero para Miembros
+## v0.8.0 — Dashboard Financiero ✅
 
-### Widgets
-- [ ] `MemberAccountWidget`: nuevo widget StatsOverview para rol `member`
-- [ ] `MemberDistributionsWidget`: nuevo widget tabla de últimos cierres del miembro
-- [ ] `CapitalSummaryWidget`: agregar stat de gastos/ganancia neta real
-- [ ] `CapitalSummaryWidget`: ajustar acceso para excluir rol `member`
+### Filament UI
+- [x] `FinancialDashboardPage`: página custom con KPIs por sección (Capital, Fondo, Comisiones, Proyecciones)
+- [x] Gráfico de tendencia financiera (line chart: comisiones, gastos, ganancia neta)
+- [x] Gráfico comparativo de financiamientos por mes (bar chart: desembolsados vs cobrados)
+- [x] Gráfico de participación por compañía (doughnut chart)
+- [x] Tabla de desglose por miembro (distribuciones del período)
+- [x] Selector de período con badge de estado (cerrado/en curso)
+- [x] Eliminar `CapitalSummaryWidget` y `BankBalanceWidget` (reemplazados por el dashboard)
+
+### Seeders
+- [x] `MonthlyClosingSeeder`: datos de cierres para enero y febrero 2026
+- [x] `FinancingAndTransactionSeeder`: datos multi-mes con gastos operativos
+- [x] `FundMemberSeeder`: agregar miembro tipo naturaleza
 
 ### Cierre de versión
-- [ ] Tests actualizados para todos los cambios de v0.8.0
-- [ ] Visto bueno del usuario
-- [ ] `git commit` + `git tag v0.8.0` + `git push --tags`
+- [x] Visto bueno del usuario
+- [x] `git commit` + `git tag v0.8.0` + `git push --tags`
 
 ---
 
