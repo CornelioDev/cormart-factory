@@ -4,6 +4,7 @@ namespace App\Filament\Resources\FinancingResource\Pages;
 
 use App\Filament\Resources\FinancingResource;
 use Filament\Actions;
+use Filament\Forms\Components\Textarea;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewFinancing extends ViewRecord
@@ -38,6 +39,28 @@ class ViewFinancing extends ViewRecord
                     'company_id'    => $this->record->company_id,
                     'financing_ids' => (string) $this->record->id,
                 ])),
+
+            Actions\Action::make('cancel')
+                ->label('Cancelar')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->visible(fn (): bool => in_array($this->record->status, ['solicited', 'disbursed', 'partially_collected']))
+                ->requiresConfirmation()
+                ->modalHeading('Cancelar Financiamiento')
+                ->modalDescription('Esta acción no se puede deshacer. ¿Está seguro?')
+                ->form([
+                    Textarea::make('cancellation_reason')
+                        ->label('Motivo de Cancelación')
+                        ->required()
+                        ->maxLength(500),
+                ])
+                ->action(function (array $data): void {
+                    $this->record->update([
+                        'status'              => 'cancelled',
+                        'cancellation_reason' => $data['cancellation_reason'],
+                    ]);
+                    $this->redirect(FinancingResource::getUrl('view', ['record' => $this->record]));
+                }),
         ];
     }
 }

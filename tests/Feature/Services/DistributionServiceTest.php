@@ -7,6 +7,7 @@ use App\Models\ClosingDistribution;
 use App\Models\ClosingParametersSnapshot;
 use App\Models\Company;
 use App\Models\Financing;
+use App\Models\FundAccount;
 use App\Models\FundMember;
 use App\Models\MonthlyClosing;
 use App\Models\User;
@@ -31,6 +32,10 @@ class DistributionServiceTest extends ServiceTestCase
         $this->company = Company::factory()->create();
         $this->client  = Client::factory()->for($this->company)->create();
         $this->user    = User::factory()->create();
+
+        $this->actingAs($this->user);
+
+        FundAccount::create(['balance' => 0]);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -58,13 +63,14 @@ class DistributionServiceTest extends ServiceTestCase
         return [$memberA, $memberB, $inKind];
     }
 
-    private function createCollectedFinancings(int $count = 3, float $commission = 5000.00): void
+    private function createFinancingsForPeriod(int $count = 3, float $commission = 5000.00): void
     {
-        Financing::factory()->count($count)->collected($this->period)->create([
+        Financing::factory()->count($count)->disbursed()->create([
             'company_id'    => $this->company->id,
             'client_id'     => $this->client->id,
             'registered_by' => $this->user->id,
             'commission'    => $commission,
+            'issue_period'  => $this->period,
         ]);
     }
 
@@ -84,7 +90,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_verification_diff_is_zero_with_standard_fixture(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(3, 5000.00);
+        $this->createFinancingsForPeriod(3, 5000.00);
 
         $result = $this->service->calculate($this->period);
 
@@ -98,10 +104,10 @@ class DistributionServiceTest extends ServiceTestCase
         $this->assertEquals(4200.00, (float) $result['available_for_capital']);
     }
 
-    public function test_total_commissions_sums_only_collected_financings_in_period(): void
+    public function test_total_commissions_sums_disbursed_financings_in_period(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(2, 3000.00);
+        $this->createFinancingsForPeriod(2, 3000.00);
 
         $result = $this->service->calculate($this->period);
 
@@ -112,14 +118,15 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_financings_from_other_periods_are_excluded(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(2, 5000.00);
+        $this->createFinancingsForPeriod(2, 5000.00);
 
-        // Financing in a different period
-        Financing::factory()->collected('2026-02')->create([
+        // Financing disbursed in a different period
+        Financing::factory()->disbursed()->create([
             'company_id'    => $this->company->id,
             'client_id'     => $this->client->id,
             'registered_by' => $this->user->id,
             'commission'    => 5000.00,
+            'issue_period'  => '2026-02',
         ]);
 
         $result = $this->service->calculate($this->period);
@@ -128,28 +135,39 @@ class DistributionServiceTest extends ServiceTestCase
         $this->assertEquals(2, $result['financings_count']);
     }
 
-    public function test_uncollected_financings_are_excluded_from_commissions(): void
+    public function test_solicited_and_cancelled_financings_are_excluded_from_commissions(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(1, 5000.00);
+        $this->createFinancingsForPeriod(1, 5000.00);
 
-        // Disbursed financing (not collected)
-        Financing::factory()->disbursed()->create([
+        // Solicited financing (not yet disbursed) — excluded
+        Financing::factory()->create([
             'company_id'    => $this->company->id,
             'client_id'     => $this->client->id,
             'registered_by' => $this->user->id,
             'commission'    => 5000.00,
+            'issue_period'  => $this->period,
+        ]);
+
+        // Cancelled financing — excluded
+        Financing::factory()->cancelled()->create([
+            'company_id'    => $this->company->id,
+            'client_id'     => $this->client->id,
+            'registered_by' => $this->user->id,
+            'commission'    => 5000.00,
+            'issue_period'  => $this->period,
         ]);
 
         $result = $this->service->calculate($this->period);
 
         $this->assertEquals(5000.00, (float) $result['total_commissions']);
+        $this->assertEquals(1, $result['financings_count']);
     }
 
     public function test_fixed_return_is_subtracted_before_reserve(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(3, 5000.00);
+        $this->createFinancingsForPeriod(3, 5000.00);
 
         $result = $this->service->calculate($this->period);
 
@@ -161,7 +179,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_reserve_applied_to_net_profit_not_total_commissions(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(3, 5000.00);
+        $this->createFinancingsForPeriod(3, 5000.00);
 
         $result = $this->service->calculate($this->period);
 
@@ -173,7 +191,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_in_kind_payment_applied_to_post_reserve(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(3, 5000.00);
+        $this->createFinancingsForPeriod(3, 5000.00);
 
         $result = $this->service->calculate($this->period);
 
@@ -185,7 +203,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_proportional_distribution_respects_fund_percentage(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(3, 5000.00);
+        $this->createFinancingsForPeriod(3, 5000.00);
 
         $result = $this->service->calculate($this->period);
 
@@ -201,7 +219,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_in_kind_member_has_zero_fixed_and_receives_in_kind_amount(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(3, 5000.00);
+        $this->createFinancingsForPeriod(3, 5000.00);
 
         $result = $this->service->calculate($this->period);
 
@@ -212,7 +230,7 @@ class DistributionServiceTest extends ServiceTestCase
         $this->assertEquals(4200.00, $inKindDist['total_amount']);
     }
 
-    public function test_calculate_with_no_collected_financings_returns_zeros(): void
+    public function test_calculate_with_no_disbursed_financings_returns_zeros(): void
     {
         $this->createStandardMembers();
 
@@ -226,7 +244,7 @@ class DistributionServiceTest extends ServiceTestCase
     {
         $this->createStandardMembers(); // 2 capital + 1 in_kind = 3
         FundMember::factory()->inactive()->create(); // Should be excluded
-        $this->createCollectedFinancings(1);
+        $this->createFinancingsForPeriod(1);
 
         $result = $this->service->calculate($this->period);
 
@@ -238,7 +256,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_execute_closing_creates_monthly_closing_record(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings();
+        $this->createFinancingsForPeriod();
 
         $closing = $this->service->executeClosing($this->period, $this->user->id);
 
@@ -251,7 +269,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_execute_closing_creates_distribution_per_member(): void
     {
         $this->createStandardMembers(); // 3 members
-        $this->createCollectedFinancings();
+        $this->createFinancingsForPeriod();
 
         $closing = $this->service->executeClosing($this->period, $this->user->id);
 
@@ -261,17 +279,18 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_execute_closing_creates_parameters_snapshot(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings();
+        $this->createFinancingsForPeriod();
 
         $closing = $this->service->executeClosing($this->period, $this->user->id);
 
-        $this->assertEquals(5, ClosingParametersSnapshot::where('monthly_closing_id', $closing->id)->count());
+        $paramCount = \App\Models\Parameter::count();
+        $this->assertEquals($paramCount, ClosingParametersSnapshot::where('monthly_closing_id', $closing->id)->count());
     }
 
     public function test_execute_closing_throws_if_period_already_closed(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings();
+        $this->createFinancingsForPeriod();
 
         $this->service->executeClosing($this->period, $this->user->id);
 
@@ -283,7 +302,7 @@ class DistributionServiceTest extends ServiceTestCase
     public function test_execute_closing_persists_zero_verification_diff(): void
     {
         $this->createStandardMembers();
-        $this->createCollectedFinancings(3, 5000.00);
+        $this->createFinancingsForPeriod(3, 5000.00);
 
         $closing = $this->service->executeClosing($this->period, $this->user->id);
 

@@ -7,6 +7,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE `transactions` MODIFY `type` ENUM('disbursement', 'collection', 'expense') NOT NULL");
         DB::statement("ALTER TABLE `transactions` MODIFY `bank` VARCHAR(255) NULL");
         DB::statement("ALTER TABLE `transactions` MODIFY `transaction_number` VARCHAR(255) NULL");
@@ -14,6 +18,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE `transactions` MODIFY `bank` VARCHAR(255) NOT NULL");
         DB::statement("ALTER TABLE `transactions` MODIFY `transaction_number` VARCHAR(255) NOT NULL");
         DB::statement("ALTER TABLE `transactions` MODIFY `type` ENUM('disbursement', 'collection') NOT NULL");

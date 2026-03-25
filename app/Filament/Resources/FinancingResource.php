@@ -13,7 +13,6 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
@@ -26,9 +25,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
-use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -523,28 +520,7 @@ class FinancingResource extends Resource
                     ->relationship('company', 'name'),
             ])
             ->actions([
-                Action::make('cancel')
-                    ->label('Cancelar')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->visible(fn (Financing $record): bool => in_array($record->status, ['solicited', 'disbursed', 'partially_collected']))
-                    ->form([
-                        Textarea::make('cancellation_reason')
-                            ->label('Motivo de Cancelación')
-                            ->required()
-                            ->maxLength(500),
-                    ])
-                    ->action(function (Financing $record, array $data): void {
-                        $record->update([
-                            'status'              => 'cancelled',
-                            'cancellation_reason' => $data['cancellation_reason'],
-                        ]);
-                    }),
-
                 ViewAction::make(),
-
-                EditAction::make()
-                    ->visible(fn (Financing $record): bool => $record->status === 'solicited'),
             ])
             ->bulkActions([
                 BulkAction::make('disburse')

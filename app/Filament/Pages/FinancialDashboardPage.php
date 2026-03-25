@@ -23,6 +23,7 @@ class FinancialDashboardPage extends Page
     public ?string $selectedPeriod = null;
     public ?array $snapshot = null;
     public array $chartData = [];
+    public array $roiChartData = [];
     public array $financingsChartData = [];
     public array $cashflowChartData = [];
 
@@ -36,6 +37,7 @@ class FinancialDashboardPage extends Page
         $this->selectedPeriod = now()->format('Y-m');
         $this->loadSnapshot();
         $this->chartData = $this->getChartData();
+        $this->roiChartData = $this->getRoiChartData();
         $this->financingsChartData = $this->getFinancingsChartData();
         $this->cashflowChartData = $this->getCashflowChartData();
     }
@@ -113,28 +115,6 @@ class FinancialDashboardPage extends Page
         }
 
         // KPIs operativos
-        [$year, $month] = explode('-', $this->selectedPeriod);
-
-        $collectedCount = Financing::where('status', 'collected')
-            ->where('collection_period', $this->selectedPeriod)
-            ->count();
-
-        $commissionsCollected = $this->snapshot['total_commissions'];
-
-        $pendingCommissions = Financing::whereIn('status', ['disbursed', 'partially_collected'])
-            ->sum('commission');
-        $disbursedCount = Financing::whereIn('status', ['disbursed', 'partially_collected'])->count();
-
-        $this->snapshot['projected_commissions'] = $commissionsCollected + $pendingCommissions;
-        $this->snapshot['pending_in_street_count'] = $disbursedCount;
-
-        $activeFinancings = $collectedCount + $disbursedCount;
-        $this->snapshot['collection_pct'] = $activeFinancings > 0
-            ? round($collectedCount / $activeFinancings * 100, 1)
-            : 0;
-        $this->snapshot['collected_count'] = $collectedCount;
-        $this->snapshot['active_financings'] = $activeFinancings;
-
         $capitalInStreet = (float) Financing::whereIn('status', ['disbursed', 'partially_collected'])
             ->selectRaw('SUM(transfer_amount - collected_amount) as pending')
             ->value('pending');
@@ -145,6 +125,16 @@ class FinancialDashboardPage extends Page
             ->sum('contribution');
         $this->snapshot['capital_total'] = $totalCapital;
         $this->snapshot['capital_available'] = $totalCapital - $capitalInStreet;
+
+        // % de Cobro global: cobrados / (cobrados + activos en calle)
+        $globalCollected = Financing::where('status', 'collected')->count();
+        $globalActive    = Financing::whereIn('status', ['disbursed', 'partially_collected'])->count();
+        $globalTotal     = $globalCollected + $globalActive;
+        $this->snapshot['collection_pct']    = $globalTotal > 0
+            ? round($globalCollected / $globalTotal * 100, 1)
+            : 0;
+        $this->snapshot['collected_count']   = $globalCollected;
+        $this->snapshot['active_financings'] = $globalTotal;
 
         // ROI
         $this->snapshot['roi_period'] = $totalCapital > 0
@@ -172,15 +162,33 @@ class FinancialDashboardPage extends Page
             ->where('status', 'confirmed')->sum('amount');
 
         $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements;
+
+        // CxC: Cuentas por Cobrar
+        $cxcBase = Financing::whereIn('status', ['disbursed', 'partially_collected']);
+        $cxcTotal = (float) $cxcBase->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
+        $cxcCount = Financing::whereIn('status', ['disbursed', 'partially_collected'])->count();
+        $cxcOverdueCount = Financing::whereIn('status', ['disbursed', 'partially_collected'])
+            ->where('due_date', '<', Carbon::today())->count();
+        $cxcOverdueTotal = (float) Financing::whereIn('status', ['disbursed', 'partially_collected'])
+            ->where('due_date', '<', Carbon::today())
+            ->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
+
+        $this->snapshot['cxc_total']         = $cxcTotal;
+        $this->snapshot['cxc_count']         = $cxcCount;
+        $this->snapshot['cxc_al_dia']        = $cxcTotal - $cxcOverdueTotal;
+        $this->snapshot['cxc_al_dia_count']  = $cxcCount - $cxcOverdueCount;
+        $this->snapshot['cxc_overdue']       = $cxcOverdueTotal;
+        $this->snapshot['cxc_overdue_count'] = $cxcOverdueCount;
+
+        // CxP: Cuentas por Pagar (solicited = pendientes de desembolso)
+        $this->snapshot['cxp_total']  = (float) Financing::where('status', 'solicited')->sum('transfer_amount');
+        $this->snapshot['cxp_count']  = Financing::where('status', 'solicited')->count();
+        $this->snapshot['cxp_amount'] = (float) Financing::where('status', 'solicited')->sum('amount');
     }
 
     public function getChartData(): array
     {
         $closings = MonthlyClosing::orderBy('period')->get();
-
-        if ($closings->isEmpty()) {
-            return ['labels' => [], 'datasets' => []];
-        }
 
         $labels       = [];
         $commissions  = [];
@@ -192,6 +200,23 @@ class FinancialDashboardPage extends Page
             $commissions[]  = (float) $closing->total_commissions;
             $expensesData[] = (float) $closing->total_expenses;
             $netProfits[]   = (float) $closing->net_profit;
+        }
+
+        // Incluir período en curso si no está cerrado
+        if ($this->snapshot && ! $this->snapshot['is_closed']) {
+            $currentPeriod = $this->selectedPeriod ?? now()->format('Y-m');
+            $alreadyIncluded = MonthlyClosing::where('period', $currentPeriod)->exists();
+
+            if (! $alreadyIncluded) {
+                $labels[]       = Carbon::createFromFormat('Y-m', $currentPeriod)->translatedFormat('M Y') . ' *';
+                $commissions[]  = (float) $this->snapshot['total_commissions'];
+                $expensesData[] = (float) $this->snapshot['total_expenses'];
+                $netProfits[]   = (float) $this->snapshot['net_profit'];
+            }
+        }
+
+        if (empty($labels)) {
+            return ['labels' => [], 'datasets' => []];
         }
 
         return [
@@ -255,6 +280,36 @@ class FinancialDashboardPage extends Page
         }
 
         return ['labels' => $labels, 'collected' => $collected, 'disbursed' => $disbursed];
+    }
+
+    public function getRoiChartData(): array
+    {
+        $closings = MonthlyClosing::orderBy('period')->get();
+
+        $totalCapital = (float) FundMember::where('type', 'capital')
+            ->where('active', true)
+            ->sum('contribution');
+
+        $labels = [];
+        $rois   = [];
+
+        foreach ($closings as $closing) {
+            $labels[] = Carbon::createFromFormat('Y-m', $closing->period)->translatedFormat('M Y');
+            $rois[]   = $totalCapital > 0
+                ? round(((float) $closing->net_profit / $totalCapital) * 100, 2)
+                : 0;
+        }
+
+        // Incluir período en curso
+        if ($this->snapshot && ! $this->snapshot['is_closed']) {
+            $currentPeriod = $this->selectedPeriod ?? now()->format('Y-m');
+            if (! MonthlyClosing::where('period', $currentPeriod)->exists()) {
+                $labels[] = Carbon::createFromFormat('Y-m', $currentPeriod)->translatedFormat('M Y') . ' *';
+                $rois[]   = $this->snapshot['roi_period'] ?? 0;
+            }
+        }
+
+        return ['labels' => $labels, 'rois' => $rois];
     }
 
     public function getCashflowChartData(): array

@@ -1,6 +1,6 @@
 # Roadmap Cormart Factory → v1.0.0
 
-> Actualizado: 2026-03-24 | Estado actual: **v0.8.0**
+> Actualizado: 2026-03-25 | Estado actual: **v0.8.2**
 
 ---
 
@@ -115,6 +115,22 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 
 ---
 
+## v0.8.2 — Distribución basada en desembolsos y mejoras del Dashboard
+
+**Objetivo:** Cambiar la distribución mensual para usar comisiones de desembolsos (no cobros). Mejorar el Dashboard Financiero con CxC/CxP, ROI histórico y período en curso.
+
+### Archivos clave
+| Archivo | Cambio |
+|---|---|
+| `app/Services/DistributionService.php` | Query cambiada a `issue_period` + `whereNotIn(['solicited','cancelled'])` |
+| `app/Filament/Pages/FinancialDashboardPage.php` | Eliminada sección Proyecciones, % Cobro global, CxC/CxP, ROI chart |
+| `resources/views/filament/pages/financial-dashboard-page.blade.php` | Nuevas secciones CxC/CxP, gráfico ROI, indicadores operativos |
+| `app/Filament/Resources/FinancingResource.php` | Acción Cancelar removida de tabla |
+| `app/Filament/Resources/FinancingResource/Pages/ViewFinancing.php` | Acción Cancelar agregada a vista detalle |
+| `database/migrations/2026_03_11_000004_create_transactions_table.php` | Guard SQLite para enums |
+
+---
+
 ## v0.9.0 — Calidad y Preparación para Producción
 
 **Objetivo:** Tests de nuevos features, corrección de bugs conocidos, checklist de producción.
@@ -147,5 +163,6 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 | **v0.6.0** | Cuenta de ganancias + desembolsos a miembros | ✅ Completado |
 | **v0.7.0** | Perfil de miembro — estado de cuenta | ✅ Completado |
 | **v0.8.0** | Dashboard financiero | ✅ Completado |
+| **v0.8.2** | Distribución por desembolsos + mejoras dashboard | ✅ Completado |
 | **v0.9.0** | Tests, bug fixes, preparación producción | Pendiente |
 | **v1.0.0** | QA y lanzamiento | Pendiente |

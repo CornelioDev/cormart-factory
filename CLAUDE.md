@@ -14,7 +14,7 @@ Repositorio: https://github.com/CornelioDev/cormart-factory
 
 ---
 
-## Estado actual: v0.5.0
+## Estado actual: v0.8.2
 
 El sistema está completamente operativo. Se mantienen dos instancias locales:
 
@@ -145,16 +145,22 @@ Configurables desde el módulo Parámetros (super_admin). Cada cambio queda en h
 ## Regla de distribución mensual (orden estricto — no modificar)
 
 ```
-Comisiones cobradas del período (collection_period = período seleccionado)
-  − Rendimiento fijo (capital × fixed_return_pct) por cada miembro activo de capital
-  = Ganancia neta
-      − Reserva (ganancia × reserve_pct)
-      = Post-reserva
-          − Aporte en especie (post-reserva × in_kind_pct)
-          = Disponible para capital → reparto proporcional por fund_percentage
+Comisiones de financiamientos desembolsados en el período (issue_period = período seleccionado)
+  − Gastos del período (type=expense, transaction_date en el período)
+  = Base real de ganancias
+    − Rendimiento fijo (capital × fixed_return_pct) por cada miembro activo de capital
+    = Ganancia neta
+        − Reserva (ganancia × reserve_pct)
+        = Post-reserva
+            − Aporte en especie (post-reserva × in_kind_pct)
+            = Disponible para capital → reparto proporcional por fund_percentage
 
-Verificación: comisiones = total_fijo + reserva + naturaleza + capital → diff debe ser 0
+Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital → diff = 0
 ```
+
+> **Nota:** La comisión (5%) se retiene al momento del desembolso — nunca sale del fondo.
+> La distribución se basa en desembolsos (`issue_period`), no en cobros (`collection_period`).
+> `collection_period` y `collected_at` siguen existiendo como métricas operativas de cobro.
 
 Cada cierre persiste: `MonthlyClosing` + `ClosingDistribution` por miembro + `ClosingParametersSnapshot`.
 Un período solo puede cerrarse una vez.
@@ -165,10 +171,9 @@ Un período solo puede cerrarse una vez.
 
 | Widget | Visible para | Scope |
 |---|---|---|
-| `CapitalSummaryWidget` | super_admin, operator, member | Datos globales del fondo |
 | `FinancingPipelineWidget` | Todos | Filtrado por company_id para company_user |
 | `PendingTransactionsWidget` | super_admin, operator | Global |
-| `CuentasPorCobrarStatsWidget` | super_admin, operator, company_user | Filtrado por company_id para company_user |
+| `CuentasPorCobrarStatsWidget` | super_admin, operator, company_user | Filtrado por company_id para company_user (isDiscovered = false) |
 | `CuentasPorPagarStatsWidget` | super_admin, operator | Global (isDiscovered = false) |
 
 ---

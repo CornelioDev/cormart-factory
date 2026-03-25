@@ -32,8 +32,8 @@ class DistributionService
             ->where('active', true)
             ->first();
 
-        $totalCommissions = Financing::where('status', 'collected')
-            ->where('collection_period', $period)
+        $totalCommissions = Financing::whereNotIn('status', ['solicited', 'cancelled'])
+            ->where('issue_period', $period)
             ->sum('commission');
 
         $totalExpenses = Transaction::where('type', 'expense')
@@ -98,8 +98,8 @@ class DistributionService
             'verification_diff'     => $verificationDiff,
             'distributions'         => $memberDistributions,
             'parameters'            => $params->toArray(),
-            'financings_count'      => Financing::where('status', 'collected')
-                                        ->where('collection_period', $period)
+            'financings_count'      => Financing::whereNotIn('status', ['solicited', 'cancelled'])
+                                        ->where('issue_period', $period)
                                         ->count(),
         ];
     }

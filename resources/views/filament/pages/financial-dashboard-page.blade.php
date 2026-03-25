@@ -161,9 +161,10 @@
                 <div class="fd-kpi-desc fd-muted">Total esperado en cuenta bancaria</div>
             </div>
             <div class="fd-kpi">
-                <div class="fd-kpi-label fd-muted">ROI Acumulado</div>
-                <div class="fd-kpi-value fd-color-primary">{{ number_format($snapshot['roi_accumulated'], 2) }}%</div>
-                <div class="fd-kpi-desc fd-muted">Retorno histórico acumulado</div>
+                <div class="fd-kpi-label fd-muted">Ganancias Acumuladas</div>
+                @php $accNetProfit = (float) \App\Models\MonthlyClosing::sum('net_profit') + ($snapshot['is_closed'] ? 0 : $snapshot['net_profit']); @endphp
+                <div class="fd-kpi-value {{ $accNetProfit >= 0 ? 'fd-color-success' : 'fd-color-danger' }}">RD$ {{ number_format($accNetProfit, 2, '.', ',') }}</div>
+                <div class="fd-kpi-desc fd-muted">Ganancia neta histórica acumulada</div>
             </div>
         </div>
 
@@ -173,7 +174,7 @@
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Comisiones del Mes</div>
                 <div class="fd-kpi-value fd-color-primary">RD$ {{ number_format($snapshot['total_commissions'], 2, '.', ',') }}</div>
-                <div class="fd-kpi-desc fd-muted">Comisiones cobradas del período</div>
+                <div class="fd-kpi-desc fd-muted">Comisiones generadas por desembolsos del período</div>
             </div>
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Gastos del Mes</div>
@@ -204,27 +205,80 @@
             </div>
         </div>
 
-        {{-- ══ PROYECCIONES ══ --}}
-        <h3 class="fd-section-heading fd-muted">Proyecciones</h3>
+        {{-- ══ INDICADORES OPERATIVOS ══ --}}
+        <h3 class="fd-section-heading fd-muted">Indicadores Operativos</h3>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
             <div class="fd-kpi">
-                <div class="fd-kpi-label fd-muted">Proyección de Comisiones</div>
-                <div class="fd-kpi-value fd-color-info">RD$ {{ number_format($snapshot['projected_commissions'], 2, '.', ',') }}</div>
-                <div class="fd-kpi-desc fd-muted">Cobrado + {{ $snapshot['pending_in_street_count'] }} pendientes en calle</div>
-            </div>
-            <div class="fd-kpi">
-                <div class="fd-kpi-label fd-muted">% de Cobro</div>
+                <div class="fd-kpi-label fd-muted">% de Cobro Global</div>
                 @php
                     $pct = $snapshot['collection_pct'];
                     $pctColor = $pct >= 75 ? 'fd-color-success' : ($pct >= 40 ? 'fd-color-warning' : 'fd-color-danger');
                 @endphp
                 <div class="fd-kpi-value {{ $pctColor }}">{{ $pct }}%</div>
-                <div class="fd-kpi-desc fd-muted">{{ $snapshot['collected_count'] }} cobrados de {{ $snapshot['active_financings'] }} activos</div>
+                <div class="fd-kpi-desc fd-muted">{{ $snapshot['collected_count'] }} cobrados de {{ $snapshot['active_financings'] }} totales</div>
             </div>
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">ROI del Período</div>
                 <div class="fd-kpi-value {{ $snapshot['roi_period'] >= 0 ? 'fd-color-success' : 'fd-color-danger' }}">{{ number_format($snapshot['roi_period'], 2) }}%</div>
                 <div class="fd-kpi-desc fd-muted">Retorno sobre capital del mes</div>
+            </div>
+            <div class="fd-kpi">
+                <div class="fd-kpi-label fd-muted">ROI Acumulado</div>
+                <div class="fd-kpi-value fd-color-primary">{{ number_format($snapshot['roi_accumulated'], 2) }}%</div>
+                <div class="fd-kpi-desc fd-muted">Retorno histórico acumulado</div>
+            </div>
+        </div>
+
+        {{-- ══ CUENTAS POR COBRAR / PAGAR ══ --}}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+            {{-- CxC --}}
+            <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
+                <div class="fd-header" style="padding:10px 16px">
+                    <h3 class="fd-title fd-section-title">Cuentas por Cobrar</h3>
+                    <p class="fd-subtitle fd-section-subtitle">Financiamientos pendientes de cobro</p>
+                </div>
+                <div style="padding:10px 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div>
+                        <div class="fd-kpi-label fd-muted">Total por Cobrar</div>
+                        <div class="fd-kpi-value fd-color-primary" style="font-size:18px">RD$ {{ number_format($snapshot['cxc_total'] ?? 0, 2, '.', ',') }}</div>
+                        <div class="fd-kpi-desc fd-muted">{{ $snapshot['cxc_count'] ?? 0 }} financiamiento{{ ($snapshot['cxc_count'] ?? 0) !== 1 ? 's' : '' }}</div>
+                    </div>
+                    <div>
+                        <div class="fd-kpi-label fd-muted">Al Día</div>
+                        <div class="fd-kpi-value fd-color-success" style="font-size:18px">RD$ {{ number_format($snapshot['cxc_al_dia'] ?? 0, 2, '.', ',') }}</div>
+                        <div class="fd-kpi-desc fd-muted">{{ $snapshot['cxc_al_dia_count'] ?? 0 }} registro{{ ($snapshot['cxc_al_dia_count'] ?? 0) !== 1 ? 's' : '' }}</div>
+                    </div>
+                    <div>
+                        <div class="fd-kpi-label fd-muted">Vencidos</div>
+                        <div class="fd-kpi-value {{ ($snapshot['cxc_overdue_count'] ?? 0) > 0 ? 'fd-color-danger' : 'fd-muted' }}" style="font-size:18px">RD$ {{ number_format($snapshot['cxc_overdue'] ?? 0, 2, '.', ',') }}</div>
+                        <div class="fd-kpi-desc fd-muted">{{ $snapshot['cxc_overdue_count'] ?? 0 }} registro{{ ($snapshot['cxc_overdue_count'] ?? 0) !== 1 ? 's' : '' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- CxP --}}
+            <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
+                <div class="fd-header" style="padding:10px 16px">
+                    <h3 class="fd-title fd-section-title">Cuentas por Pagar</h3>
+                    <p class="fd-subtitle fd-section-subtitle">Financiamientos pendientes de desembolso</p>
+                </div>
+                <div style="padding:10px 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div>
+                        <div class="fd-kpi-label fd-muted">Total por Desembolsar</div>
+                        <div class="fd-kpi-value fd-color-primary" style="font-size:18px">RD$ {{ number_format($snapshot['cxp_total'] ?? 0, 2, '.', ',') }}</div>
+                        <div class="fd-kpi-desc fd-muted">Neto después de comisiones</div>
+                    </div>
+                    <div>
+                        <div class="fd-kpi-label fd-muted">Monto Solicitado</div>
+                        <div class="fd-kpi-value fd-muted" style="font-size:18px">RD$ {{ number_format($snapshot['cxp_amount'] ?? 0, 2, '.', ',') }}</div>
+                        <div class="fd-kpi-desc fd-muted">Monto bruto</div>
+                    </div>
+                    <div>
+                        <div class="fd-kpi-label fd-muted">Solicitudes Pendientes</div>
+                        <div class="fd-kpi-value {{ ($snapshot['cxp_count'] ?? 0) > 0 ? 'fd-color-warning' : 'fd-muted' }}" style="font-size:18px">{{ $snapshot['cxp_count'] ?? 0 }}</div>
+                        <div class="fd-kpi-desc fd-muted">financiamiento{{ ($snapshot['cxp_count'] ?? 0) !== 1 ? 's' : '' }} solicitados</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -288,66 +342,87 @@
             </div>
         </div>
 
-        {{-- ══ Tabla de distribuciones (ancho completo) ══ --}}
-        <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
-            <div class="fd-header" style="padding:10px 16px">
-                <h3 class="fd-title fd-section-title">Desglose por Miembro</h3>
-                <p class="fd-subtitle fd-section-subtitle">Distribución del período seleccionado</p>
+        {{-- ══ Tabla de distribuciones + Gráfico ROI ══ --}}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+            {{-- Tabla de distribuciones --}}
+            <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
+                <div class="fd-header" style="padding:10px 16px">
+                    <h3 class="fd-title fd-section-title">Desglose por Miembro</h3>
+                    <p class="fd-subtitle fd-section-subtitle">Distribución del período seleccionado</p>
+                </div>
+
+                @if(count($snapshot['distributions'] ?? []) > 0)
+                    <table style="width:100%;font-size:14px">
+                        <thead>
+                            <tr class="fd-thead" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">
+                                <th style="padding:12px 16px;text-align:left">Miembro</th>
+                                <th style="padding:12px 12px;text-align:left">Tipo</th>
+                                <th style="padding:12px 12px;text-align:right">Fijo</th>
+                                <th style="padding:12px 12px;text-align:right">Variable</th>
+                                <th style="padding:12px 16px;text-align:right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="fd-tbody-divider">
+                            @foreach($snapshot['distributions'] as $dist)
+                            <tr>
+                                <td class="fd-text" style="padding:10px 16px;font-weight:600">{{ $dist['name'] }}</td>
+                                <td style="padding:10px 12px">
+                                    <span class="{{ $dist['type'] === 'capital' ? 'fd-badge-capital' : 'fd-badge-inkind' }}"
+                                        style="display:inline-flex;align-items:center;border-radius:9999px;padding:2px 8px;font-size:12px;font-weight:600">
+                                        {{ $dist['type'] === 'capital' ? 'Capital' : 'Naturaleza' }}
+                                    </span>
+                                </td>
+                                <td class="fd-muted" style="padding:10px 12px;text-align:right">
+                                    {{ $dist['fixed_amount'] > 0 ? 'RD$ ' . number_format($dist['fixed_amount'], 2, '.', ',') : '—' }}
+                                </td>
+                                <td class="fd-muted" style="padding:10px 12px;text-align:right">
+                                    RD$ {{ number_format($dist['proportional_amount'], 2, '.', ',') }}
+                                </td>
+                                <td class="fd-text" style="padding:10px 16px;text-align:right;font-weight:700">
+                                    RD$ {{ number_format($dist['total_amount'], 2, '.', ',') }}
+                                </td>
+                            </tr>
+                            @endforeach
+                            <tr class="fd-row-alt">
+                                <td colspan="4" class="fd-muted" style="padding:10px 16px;font-weight:600">Reserva del fondo</td>
+                                <td class="fd-text" style="padding:10px 16px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['reserve'], 2, '.', ',') }}</td>
+                            </tr>
+                            <tr class="fd-row-green">
+                                <td colspan="4" class="fd-text" style="padding:10px 16px;font-weight:700">Total Comisiones</td>
+                                <td class="fd-color-success" style="padding:10px 16px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['total_commissions'], 2, '.', ',') }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                @else
+                    <div style="text-align:center;padding:48px 0">
+                        <p class="fd-muted" style="font-size:14px">No hay distribuciones para este período.</p>
+                    </div>
+                @endif
             </div>
 
-            @if(count($snapshot['distributions'] ?? []) > 0)
-                <table style="width:100%;font-size:14px">
-                    <thead>
-                        <tr class="fd-thead" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">
-                            <th style="padding:12px 24px;text-align:left">Miembro</th>
-                            <th style="padding:12px 16px;text-align:left">Tipo</th>
-                            <th style="padding:12px 16px;text-align:right">Fijo</th>
-                            <th style="padding:12px 16px;text-align:right">Variable</th>
-                            <th style="padding:12px 24px;text-align:right">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody class="fd-tbody-divider">
-                        @foreach($snapshot['distributions'] as $dist)
-                        <tr>
-                            <td class="fd-text" style="padding:12px 24px;font-weight:600">{{ $dist['name'] }}</td>
-                            <td style="padding:12px 16px">
-                                <span class="{{ $dist['type'] === 'capital' ? 'fd-badge-capital' : 'fd-badge-inkind' }}"
-                                    style="display:inline-flex;align-items:center;border-radius:9999px;padding:2px 8px;font-size:12px;font-weight:600">
-                                    {{ $dist['type'] === 'capital' ? 'Capital' : 'Naturaleza' }}
-                                </span>
-                            </td>
-                            <td class="fd-muted" style="padding:12px 16px;text-align:right">
-                                {{ $dist['fixed_amount'] > 0 ? 'RD$ ' . number_format($dist['fixed_amount'], 2, '.', ',') : '—' }}
-                            </td>
-                            <td class="fd-muted" style="padding:12px 16px;text-align:right">
-                                RD$ {{ number_format($dist['proportional_amount'], 2, '.', ',') }}
-                            </td>
-                            <td class="fd-text" style="padding:12px 24px;text-align:right;font-weight:700">
-                                RD$ {{ number_format($dist['total_amount'], 2, '.', ',') }}
-                            </td>
-                        </tr>
-                        @endforeach
-                        <tr class="fd-row-alt">
-                            <td colspan="4" class="fd-muted" style="padding:12px 24px;font-weight:600">Reserva del fondo</td>
-                            <td class="fd-text" style="padding:12px 24px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['reserve'], 2, '.', ',') }}</td>
-                        </tr>
-                        <tr class="fd-row-green">
-                            <td colspan="4" class="fd-text" style="padding:12px 24px;font-weight:700">Total Comisiones</td>
-                            <td class="fd-color-success" style="padding:12px 24px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['total_commissions'], 2, '.', ',') }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            @else
-                <div style="text-align:center;padding:48px 0">
-                    <p class="fd-muted" style="font-size:14px">No hay distribuciones para este período.</p>
+            {{-- Gráfico ROI histórico --}}
+            <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
+                <div class="fd-header" style="padding:10px 16px">
+                    <h3 class="fd-title fd-section-title">ROI por Período</h3>
+                    <p class="fd-subtitle fd-section-subtitle">Retorno mensual sobre capital</p>
                 </div>
-            @endif
+                <div style="padding:10px 16px 16px">
+                    @if(count($roiChartData['labels'] ?? []) > 0)
+                        <canvas id="roiChart" style="width:100%;height:300px"></canvas>
+                    @else
+                        <div style="text-align:center;padding:48px 0">
+                            <p class="fd-muted" style="font-size:14px">No hay datos de cierres anteriores.</p>
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
     @endif
 
     @script
     <script>
         const chartData = $wire.chartData;
+        const roiChartData = $wire.roiChartData;
         const financingsChartData = $wire.financingsChartData;
         const cashflowChartData = $wire.cashflowChartData;
 
@@ -436,6 +511,36 @@
                     scales: {
                         x: { grid: { display: false }, ticks: { color: textColor } },
                         y: { grid: { color: gridColor }, ticks: { color: textColor, stepSize: 1 }, beginAtZero: true },
+                    },
+                },
+            });
+        }
+
+        // ── ROI chart ──
+        const roiCtx = document.getElementById('roiChart');
+        if (roiCtx && roiChartData.labels && roiChartData.labels.length > 0) {
+            new Chart(roiCtx, {
+                type: 'bar',
+                data: {
+                    labels: roiChartData.labels,
+                    datasets: [{
+                        label: 'ROI mensual',
+                        data: roiChartData.rois,
+                        backgroundColor: roiChartData.rois.map(v => v >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)'),
+                        borderRadius: 4,
+                        barPercentage: 0.6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => 'ROI: ' + ctx.parsed.y.toFixed(2) + '%' } },
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: textColor } },
+                        y: { grid: { color: gridColor }, ticks: { color: textColor, callback: (v) => v.toFixed(1) + '%' } },
                     },
                 },
             });

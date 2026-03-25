@@ -108,6 +108,34 @@
 
 ---
 
+## v0.8.2 — Distribución basada en desembolsos y mejoras del Dashboard ✅
+
+### Lógica de negocio
+- [x] Distribución basada en `issue_period` (desembolsos) en lugar de `collection_period` (cobros)
+- [x] `DistributionService`: query usa `whereNotIn('status', ['solicited', 'cancelled'])` + `issue_period`
+
+### Dashboard Financiero
+- [x] Eliminar sección "Proyecciones" (ya no necesaria)
+- [x] Nueva sección "Indicadores Operativos": % de Cobro global, ROI del período, ROI acumulado
+- [x] Gráfico "Tendencia Financiera" incluye período en curso
+- [x] Nuevo gráfico "ROI por Período" (barras con colores positivo/negativo)
+- [x] Nuevas secciones de Cuentas por Cobrar y Cuentas por Pagar integradas
+- [x] "Ganancias Acumuladas" reemplaza ROI duplicado en sección Fondo
+
+### Financiamientos
+- [x] Acción "Cancelar" movida de la tabla a la vista detalle (con confirmación)
+- [x] Tabla simplificada — solo acción "Ver"
+
+### Infraestructura de tests
+- [x] Migraciones compatibles con SQLite (guard `DB::getDriverName()`)
+- [x] 74 tests pasando
+
+### Cierre de versión
+- [x] Visto bueno del usuario
+- [x] `git commit` + `git tag v0.8.2` + `git push --tags`
+
+---
+
 ## v0.9.0 — Calidad y Preparación para Producción
 
 ### Bug fixes

@@ -33,16 +33,17 @@ class ParameterServiceTest extends ServiceTestCase
         $this->service->get('nonexistent_key');
     }
 
-    public function test_get_all_returns_all_five_parameters(): void
+    public function test_get_all_returns_all_parameters(): void
     {
         $all = $this->service->getAll();
 
-        $this->assertCount(5, $all);
+        $this->assertCount(6, $all);
         $this->assertArrayHasKey('commission_pct', $all);
         $this->assertArrayHasKey('fixed_return_pct', $all);
         $this->assertArrayHasKey('reserve_pct', $all);
         $this->assertArrayHasKey('in_kind_pct', $all);
         $this->assertArrayHasKey('default_term_days', $all);
+        $this->assertArrayHasKey('tax_pct', $all);
 
         foreach ($all as $value) {
             $this->assertIsFloat($value);

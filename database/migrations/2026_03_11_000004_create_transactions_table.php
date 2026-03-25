@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -10,13 +11,18 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->enum('type', ['disbursement', 'collection']);
-            $table->enum('status', ['pending', 'confirmed'])->default('pending');
+            if (DB::getDriverName() === 'sqlite') {
+                $table->string('type');
+                $table->string('status')->default('pending');
+            } else {
+                $table->enum('type', ['disbursement', 'collection']);
+                $table->enum('status', ['pending', 'confirmed'])->default('pending');
+            }
             $table->decimal('amount', 15, 2);
 
             // Datos bancarios (obligatorios — entrada manual)
-            $table->string('bank')->comment('Nombre del banco');
-            $table->string('transaction_number')->comment('Número de transacción bancaria');
+            $table->string('bank')->nullable()->comment('Nombre del banco');
+            $table->string('transaction_number')->nullable()->comment('Número de transacción bancaria');
             $table->date('transaction_date');
 
             // Para disbursements: compañía que recibe
