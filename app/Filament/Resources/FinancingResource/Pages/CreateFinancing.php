@@ -14,6 +14,11 @@ class CreateFinancing extends CreateRecord
     {
         $data['registered_by'] = auth()->id();
 
+        $user = auth()->user();
+        if ($user->hasRole('company_user')) {
+            $data['company_id'] ??= $user->company_id;
+        }
+
         return parent::handleRecordCreation($data);
     }
 }

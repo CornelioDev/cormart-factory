@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\TransactionResource;
 use App\Models\Transaction;
 use App\Services\TransactionService;
 use Filament\Tables\Actions\Action;
@@ -11,26 +12,37 @@ use Filament\Widgets\TableWidget as BaseWidget;
 
 class PendingTransactionsWidget extends BaseWidget
 {
-    protected static ?int $sort = 1;
+    protected static ?int $sort = 2;
 
     protected int | string | array $columnSpan = 'full';
 
-    protected static ?string $heading = 'Cobros Pendientes de Confirmación';
+    public function getHeading(): string
+    {
+        return auth()->user()->hasRole('company_user')
+            ? 'Pagos Pendientes de Confirmación'
+            : 'Cobros Pendientes de Confirmación';
+    }
 
     public static function canView(): bool
     {
-        return auth()->user()->hasAnyRole(['super_admin', 'operator']);
+        return auth()->user()->hasAnyRole(['super_admin', 'operator', 'company_user']);
     }
 
     public function table(Table $table): Table
     {
+        $user      = auth()->user();
+        $isCompanyUser = $user->hasRole('company_user');
+
+        $query = Transaction::query()
+            ->where('status', 'pending')
+            ->where('type', 'collection')
+            ->when($isCompanyUser, fn ($q) => $q->where('company_id', $user->company_id))
+            ->orderBy('transaction_date');
+
         return $table
-            ->query(
-                Transaction::query()
-                    ->where('status', 'pending')
-                    ->where('type', 'collection')
-                    ->orderBy('transaction_date')
-            )
+            ->heading($isCompanyUser ? 'Pagos Pendientes de Confirmación' : 'Cobros Pendientes de Confirmación')
+            ->query($query)
+            ->recordUrl(fn (Transaction $record) => TransactionResource::getUrl('view', ['record' => $record]))
             ->columns([
                 TextColumn::make('code')
                     ->label('Código')
@@ -39,7 +51,8 @@ class PendingTransactionsWidget extends BaseWidget
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
-                    ->searchable(),
+                    ->searchable()
+                    ->hidden($isCompanyUser),
 
                 TextColumn::make('amount')
                     ->label('Monto')
@@ -65,6 +78,7 @@ class PendingTransactionsWidget extends BaseWidget
                     ->label('Confirmar')
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
+                    ->visible(! $isCompanyUser)
                     ->requiresConfirmation()
                     ->modalHeading('Confirmar cobro')
                     ->modalDescription('¿Confirmas que este pago fue recibido y verificado?')
@@ -72,8 +86,8 @@ class PendingTransactionsWidget extends BaseWidget
                         (new TransactionService())->confirm($record);
                     }),
             ])
-            ->emptyStateHeading('Sin cobros pendientes')
-            ->emptyStateDescription('Todos los cobros han sido confirmados.')
+            ->emptyStateHeading($isCompanyUser ? 'Sin pagos pendientes' : 'Sin cobros pendientes')
+            ->emptyStateDescription($isCompanyUser ? 'Todos los pagos han sido procesados.' : 'Todos los cobros han sido confirmados.')
             ->emptyStateIcon('heroicon-o-check-circle')
             ->searchable(false);
     }

@@ -67,7 +67,7 @@ class FinancingResource extends Resource
                 ->searchable()
                 ->preload()
                 ->relationship('company', 'name', fn ($query) => $query->where('active', true))
-                ->createOptionForm([
+                ->createOptionForm(auth()->user()?->hasRole('company_user') ? null : [
                     TextInput::make('name')
                         ->label('Nombre / Razón Social')
                         ->required()
@@ -91,6 +91,9 @@ class FinancingResource extends Resource
                         ->label('Activo')
                         ->default(true),
                 ])
+                ->default(fn () => auth()->user()?->hasRole('company_user') ? auth()->user()->company_id : null)
+                ->hidden(fn () => auth()->user()?->hasRole('company_user'))
+                ->dehydrated()
                 ->live()
                 ->afterStateUpdated(fn (Set $set) => $set('client_id', null)),
 
@@ -207,7 +210,7 @@ class FinancingResource extends Resource
                         ->label('Tipo')
                         ->required()
                         ->options([
-                            'purchase_order' => 'Orden de Compra',
+                            'purchase_order' => 'Pedido',
                             'invoice'        => 'Factura',
                         ]),
 
@@ -351,7 +354,7 @@ class FinancingResource extends Resource
                             TextEntry::make('type')
                                 ->label('Tipo')
                                 ->formatStateUsing(fn (string $state): string => match ($state) {
-                                    'purchase_order' => 'Orden de Compra',
+                                    'purchase_order' => 'Pedido',
                                     'invoice'        => 'Factura',
                                     default          => $state,
                                 }),
