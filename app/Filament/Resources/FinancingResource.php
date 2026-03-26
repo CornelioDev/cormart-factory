@@ -26,7 +26,6 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\BulkAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -255,6 +254,7 @@ class FinancingResource extends Resource
                         ->color(fn (string $state): string => match ($state) {
                             'solicited'           => 'warning',
                             'disbursed'           => 'info',
+                            'pending_payment'     => 'warning',
                             'partially_collected' => 'primary',
                             'collected'           => 'success',
                             'cancelled'           => 'danger',
@@ -263,6 +263,7 @@ class FinancingResource extends Resource
                         ->formatStateUsing(fn (string $state): string => match ($state) {
                             'solicited'           => 'Solicitado',
                             'disbursed'           => 'Desembolsado',
+                            'pending_payment'     => 'Pago Pendiente',
                             'partially_collected' => 'Abonado',
                             'collected'           => 'Cobrado',
                             'cancelled'           => 'Cancelado',
@@ -491,16 +492,20 @@ class FinancingResource extends Resource
                     ->color(fn (string $state): string => match ($state) {
                         'solicited'           => 'warning',
                         'disbursed'           => 'info',
+                        'pending_payment'     => 'warning',
                         'partially_collected' => 'primary',
                         'collected'           => 'success',
                         'cancelled'           => 'danger',
+                        default               => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'solicited'           => 'Solicitado',
                         'disbursed'           => 'Desembolsado',
+                        'pending_payment'     => 'Pago Pendiente',
                         'partially_collected' => 'Abonado',
                         'collected'           => 'Cobrado',
                         'cancelled'           => 'Cancelado',
+                        default               => $state,
                     })
                     ->toggleable(),
             ])
@@ -510,6 +515,7 @@ class FinancingResource extends Resource
                     ->options([
                         'solicited'           => 'Solicitado',
                         'disbursed'           => 'Desembolsado',
+                        'pending_payment'     => 'Pago Pendiente',
                         'partially_collected' => 'Abonado',
                         'collected'           => 'Cobrado',
                         'cancelled'           => 'Cancelado',
@@ -520,7 +526,6 @@ class FinancingResource extends Resource
                     ->relationship('company', 'name'),
             ])
             ->actions([
-                ViewAction::make(),
             ])
             ->bulkActions([
                 BulkAction::make('disburse')
@@ -558,7 +563,7 @@ class FinancingResource extends Resource
                     }),
 
                 BulkAction::make('collect')
-                    ->label('Cobrar seleccionados')
+                    ->label(auth()->user()->hasRole('company_user') ? 'Pagar seleccionados' : 'Cobrar seleccionados')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->action(function (Collection $records): void {

@@ -14,8 +14,9 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $user      = auth()->user();
-        $companyId = $user->hasRole('company_user') ? $user->company_id : null;
+        $user          = auth()->user();
+        $isCompanyUser = $user->hasRole('company_user');
+        $companyId     = $isCompanyUser ? $user->company_id : null;
 
         $base = fn () => Financing::whereIn('status', ['disbursed', 'partially_collected'])
             ->when($companyId, fn ($q) => $q->where('company_id', $companyId));
@@ -33,7 +34,7 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
             ->sum('amount');
 
         return [
-            Stat::make('Total por Cobrar', 'RD$ ' . number_format($total, 2, '.', ','))
+            Stat::make($isCompanyUser ? 'Total por Pagar' : 'Total por Cobrar', 'RD$ ' . number_format($total, 2, '.', ','))
                 ->description($count . ' financiamiento' . ($count !== 1 ? 's' : '') . ' activos')
                 ->color('primary'),
 
@@ -45,7 +46,7 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
                 ->description($overdueCount . ' registro' . ($overdueCount !== 1 ? 's' : ''))
                 ->color($overdueCount > 0 ? 'danger' : 'gray'),
 
-            Stat::make('Cobrado en ' . now()->translatedFormat('M Y'), 'RD$ ' . number_format($collectedMonth, 2, '.', ','))
+            Stat::make(($isCompanyUser ? 'Pagado en ' : 'Cobrado en ') . now()->translatedFormat('M Y'), 'RD$ ' . number_format($collectedMonth, 2, '.', ','))
                 ->description('mes actual')
                 ->color('info'),
         ];

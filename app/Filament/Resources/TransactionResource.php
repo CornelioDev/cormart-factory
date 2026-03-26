@@ -87,7 +87,7 @@ class TransactionResource extends Resource
                     return $options;
                 })
                 ->default($qType)
-                ->disabled(! $isInternal)
+                ->hidden(! $isInternal)
                 ->dehydrated()
                 ->live()
                 ->afterStateUpdated(function (Set $set) {
@@ -101,7 +101,7 @@ class TransactionResource extends Resource
                 ->preload()
                 ->relationship('company', 'name', fn ($query) => $query->where('active', true))
                 ->default($qCompanyId)
-                ->disabled(! $isInternal)
+                ->hidden(! $isInternal)
                 ->dehydrated()
                 ->live()
                 ->visible(fn (Get $get): bool => $get('type') !== 'expense')
@@ -202,7 +202,7 @@ class TransactionResource extends Resource
             // ── Monto ──────────────────────────────────────────────────────
             TextInput::make('amount')
                 ->label(fn (Get $get) => match($get('type')) {
-                    'collection' => 'Monto a Cobrar',
+                    'collection' => auth()->user()->hasRole('company_user') ? 'Monto a Pagar' : 'Monto a Cobrar',
                     'expense'    => 'Monto del Gasto',
                     default      => 'Monto Total',
                 })

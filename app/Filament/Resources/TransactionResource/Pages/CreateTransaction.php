@@ -18,7 +18,14 @@ class CreateTransaction extends CreateRecord
 
         $data['registered_by'] = auth()->id();
 
-        if ($data['type'] === 'expense') {
+        // company_user: campos ocultos en el form, asegurar valores desde query params
+        $user = auth()->user();
+        if ($user->hasRole('company_user')) {
+            $data['type']       ??= request()->query('type', 'collection');
+            $data['company_id'] ??= $user->company_id;
+        }
+
+        if (($data['type'] ?? null) === 'expense') {
             return (new TransactionService())->createExpense($data);
         }
 

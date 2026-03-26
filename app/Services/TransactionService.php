@@ -68,26 +68,12 @@ class TransactionService
                 // Auto-generar gasto de impuesto sobre el monto desembolsado
                 $this->createTaxExpense($transaction, $data);
             } elseif ($data['type'] === 'collection') {
-                $date = Carbon::parse($data['transaction_date']);
-                $transactionAmount = (float) $data['amount'];
-
-                $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings) {
-                    // Distribuir monto proporcionalmente si hay múltiples financiamientos
-                    $totalRemaining = $financings->sum(fn ($fin) => $fin->remainingBalance());
-                    $paymentForThis = $financings->count() === 1
-                        ? $transactionAmount
-                        : round($transactionAmount * ($f->remainingBalance() / max($totalRemaining, 0.01)), 2);
-
-                    $newCollected = round((float) $f->collected_amount + $paymentForThis, 2);
-                    $isFullyPaid  = $newCollected >= (float) $f->amount;
-
-                    $f->update([
-                        'collected_amount'  => min($newCollected, (float) $f->amount),
-                        'status'            => $isFullyPaid ? 'collected' : 'partially_collected',
-                        'collected_at'      => $isFullyPaid ? $date : null,
-                        'collection_period' => $isFullyPaid ? $date->format('Y-m') : null,
-                    ]);
-                });
+                if ($transaction->status === 'confirmed') {
+                    $this->applyCollectionToFinancings($transaction);
+                } else {
+                    // Transacción pendiente de confirmación — marcar financiamientos como pago pendiente
+                    $financings->each(fn (Financing $f) => $f->update(['status' => 'pending_payment']));
+                }
             }
 
             return $transaction;
@@ -164,7 +150,38 @@ class TransactionService
             'confirmed_at' => now(),
         ]);
 
+        if ($transaction->type === 'collection') {
+            $this->applyCollectionToFinancings($transaction);
+        }
+
         return $transaction->fresh();
+    }
+
+    /**
+     * Aplica el cobro a los financiamientos vinculados a la transacción.
+     */
+    private function applyCollectionToFinancings(Transaction $transaction): void
+    {
+        $financings = $transaction->financings;
+        $date = Carbon::parse($transaction->transaction_date);
+        $transactionAmount = (float) $transaction->amount;
+
+        $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings) {
+            $totalRemaining = $financings->sum(fn ($fin) => $fin->remainingBalance());
+            $paymentForThis = $financings->count() === 1
+                ? $transactionAmount
+                : round($transactionAmount * ($f->remainingBalance() / max($totalRemaining, 0.01)), 2);
+
+            $newCollected = round((float) $f->collected_amount + $paymentForThis, 2);
+            $isFullyPaid  = $newCollected >= (float) $f->amount;
+
+            $f->update([
+                'collected_amount'  => min($newCollected, (float) $f->amount),
+                'status'            => $isFullyPaid ? 'collected' : 'partially_collected',
+                'collected_at'      => $isFullyPaid ? $date : null,
+                'collection_period' => $isFullyPaid ? $date->format('Y-m') : null,
+            ]);
+        });
     }
 
     /**

@@ -30,7 +30,7 @@ class ViewFinancing extends ViewRecord
                 ])),
 
             Actions\Action::make('collect')
-                ->label('Cobrar')
+                ->label(fn (): string => auth()->user()->hasRole('company_user') ? 'Pagar' : 'Cobrar')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
                 ->visible(fn (): bool => in_array($this->record->status, ['disbursed', 'partially_collected']))

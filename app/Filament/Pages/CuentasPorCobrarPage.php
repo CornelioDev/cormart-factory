@@ -20,10 +20,22 @@ class CuentasPorCobrarPage extends Page implements HasTable
     use InteractsWithTable;
 
     protected static ?string $navigationIcon  = 'heroicon-o-arrow-down-tray';
-    protected static ?string $navigationLabel = 'Cuentas por Cobrar';
     protected static ?string $navigationGroup = 'Operaciones';
-    protected static ?string $title           = 'Cuentas por Cobrar';
     protected static ?int    $navigationSort  = 1;
+
+    public static function getNavigationLabel(): string
+    {
+        return auth()->user()?->hasRole('company_user')
+            ? 'Cuentas por Pagar'
+            : 'Cuentas por Cobrar';
+    }
+
+    public function getTitle(): string
+    {
+        return auth()->user()->hasRole('company_user')
+            ? 'Cuentas por Pagar'
+            : 'Cuentas por Cobrar';
+    }
 
     protected static string $view = 'filament.pages.cuentas-por-cobrar-page';
 
