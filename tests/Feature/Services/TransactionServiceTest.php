@@ -6,6 +6,8 @@ use App\Models\Client;
 use App\Models\Company;
 use App\Models\Financing;
 use App\Models\FundAccount;
+use App\Models\FundMember;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\TransactionService;
 use Tests\ServiceTestCase;
@@ -23,6 +25,7 @@ class TransactionServiceTest extends ServiceTestCase
     {
         parent::setUp();
 
+        $this->seedParameters();
         $this->service = new TransactionService();
         $this->company = Company::factory()->create();
         $this->client  = Client::factory()->for($this->company)->create();
@@ -384,5 +387,160 @@ class TransactionServiceTest extends ServiceTestCase
         $f = $financing->fresh();
         $this->assertEquals('collected', $f->status);
         $this->assertEquals(100000.00, (float) $f->collected_amount);
+    }
+
+    // ── Expense tests ───────────────────────────────────────────────────
+
+    private function expenseData(float $amount = 5000.00): array
+    {
+        return [
+            'type'               => 'expense',
+            'amount'             => $amount,
+            'bank'               => 'BanReservas',
+            'transaction_number' => 'EXP-' . uniqid(),
+            'transaction_date'   => '2026-01-15',
+            'notes'              => 'Gasto de prueba',
+            'registered_by'      => $this->superAdmin->id,
+        ];
+    }
+
+    private function memberDisbursementData(int $fundMemberId, float $amount = 5000.00): array
+    {
+        return [
+            'fund_member_id'     => $fundMemberId,
+            'amount'             => $amount,
+            'bank'               => 'BanReservas',
+            'transaction_number' => 'MD-' . uniqid(),
+            'transaction_date'   => '2026-01-15',
+        ];
+    }
+
+    public function test_create_expense_auto_confirms_and_debits_fund_account(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        // Credit fund first so debit doesn't go negative
+        FundAccount::first()->update(['balance' => 10000]);
+
+        $txn = $this->service->createExpense($this->expenseData(5000.00));
+
+        $this->assertEquals('confirmed', $txn->fresh()->status);
+        $this->assertEquals($this->superAdmin->id, $txn->fresh()->confirmed_by);
+        $this->assertNotNull($txn->fresh()->confirmed_at);
+        $this->assertEquals(5000.00, (float) FundAccount::first()->balance);
+    }
+
+    public function test_disbursement_auto_generates_tax_expense(): void
+    {
+        $this->actingAs($this->operator);
+        $financing = $this->createSolicitedFinancing(100000.00);
+
+        $txn = $this->service->create($this->disbursementData(), [$financing->id]);
+
+        // transfer_amount = 95000, tax_pct = 0.15 → tax = 95000 × 0.0015 = 142.50
+        $taxExpense = Transaction::where('type', 'expense')
+            ->where('transaction_number', 'like', 'TX%')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($taxExpense);
+        $this->assertEquals(142.50, (float) $taxExpense->amount);
+        $this->assertEquals('confirmed', $taxExpense->status);
+    }
+
+    public function test_tax_expense_links_to_dgii_supplier(): void
+    {
+        $this->actingAs($this->operator);
+        $financing = $this->createSolicitedFinancing(100000.00);
+
+        $this->service->create($this->disbursementData(), [$financing->id]);
+
+        $taxExpense = Transaction::where('type', 'expense')
+            ->where('transaction_number', 'like', 'TX%')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($taxExpense->supplier_id);
+        $this->assertEquals('DGII', $taxExpense->supplier->name);
+    }
+
+    // ── Member disbursement tests ───────────────────────────────────────
+
+    public function test_create_member_disbursement_succeeds_with_sufficient_balance(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $member = FundMember::factory()->create(['type' => 'capital', 'contribution' => 100000]);
+
+        // Simulate earning_distribution to give the member a balance
+        Transaction::create([
+            'type'               => 'earning_distribution',
+            'status'             => 'confirmed',
+            'amount'             => 10000.00,
+            'transaction_number' => 'DIST-TEST-' . $member->id,
+            'transaction_date'   => '2026-01-15',
+            'fund_member_id'     => $member->id,
+            'registered_by'      => $this->superAdmin->id,
+            'confirmed_by'       => $this->superAdmin->id,
+            'confirmed_at'       => now(),
+        ]);
+
+        $txn = $this->service->createMemberDisbursement(
+            $this->memberDisbursementData($member->id, 5000.00)
+        );
+
+        $this->assertEquals('member_disbursement', $txn->type);
+        $this->assertEquals('confirmed', $txn->status);
+        $this->assertEquals(5000.00, (float) $txn->amount);
+        $this->assertEquals($member->id, $txn->fund_member_id);
+    }
+
+    public function test_create_member_disbursement_throws_when_balance_insufficient(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $member = FundMember::factory()->create(['type' => 'capital', 'contribution' => 100000]);
+
+        // No earning distributions — balance is 0
+        $this->expectException(\Exception::class);
+        $this->service->createMemberDisbursement(
+            $this->memberDisbursementData($member->id, 5000.00)
+        );
+    }
+
+    public function test_member_disbursement_generates_tax_expense(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $member = FundMember::factory()->create(['type' => 'capital', 'contribution' => 100000]);
+
+        // Give member a balance
+        Transaction::create([
+            'type'               => 'earning_distribution',
+            'status'             => 'confirmed',
+            'amount'             => 10000.00,
+            'transaction_number' => 'DIST-TEST-' . $member->id,
+            'transaction_date'   => '2026-01-15',
+            'fund_member_id'     => $member->id,
+            'registered_by'      => $this->superAdmin->id,
+            'confirmed_by'       => $this->superAdmin->id,
+            'confirmed_at'       => now(),
+        ]);
+
+        $expenseCountBefore = Transaction::where('type', 'expense')->count();
+
+        $this->service->createMemberDisbursement(
+            $this->memberDisbursementData($member->id, 5000.00)
+        );
+
+        $expenseCountAfter = Transaction::where('type', 'expense')->count();
+        $this->assertGreaterThan($expenseCountBefore, $expenseCountAfter);
+
+        // Tax = 5000 × 0.0015 = 7.50
+        $taxExpense = Transaction::where('type', 'expense')
+            ->latest('id')
+            ->first();
+
+        $this->assertEquals(7.50, (float) $taxExpense->amount);
     }
 }

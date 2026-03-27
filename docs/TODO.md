@@ -136,25 +136,25 @@
 
 ---
 
-## v0.9.0 — Calidad y Preparación para Producción
+## v0.9.0 — Calidad y Preparación para Producción ✅
 
 ### Bug fixes
-- [ ] `RolePolicy`: reemplazar placeholders de template por strings de permiso reales
+- [x] `RolePolicy`: reemplazar placeholders de template por strings de permiso reales
 
 ### Tests
-- [ ] `TransactionServiceTest`: tests para tipo `expense` y auto-generación de impuesto
-- [ ] `DistributionServiceTest`: tests con gastos en la fórmula de cierre
-- [ ] `FundMemberTest` (nuevo): tests de `earningsBalance()`, `totalEarned()`, `earningsDisbursements()`
-- [ ] `TransactionServiceTest`: tests de `createMemberDisbursement()` con validación de balance
-- [ ] `AuthorizationTest` (nuevo): scope por rol (company_user, member)
+- [x] `TransactionServiceTest`: tests para tipo `expense` y auto-generación de impuesto
+- [x] `DistributionServiceTest`: tests con gastos en la fórmula de cierre
+- [x] `FundMemberTest` (nuevo): tests de `earningsBalance()`, `totalEarned()`, `earningsDisbursements()`
+- [x] `TransactionServiceTest`: tests de `createMemberDisbursement()` con validación de balance
+- [x] `AuthorizationTest` (nuevo): scope por rol (company_user, member)
 
 ### Producción
-- [ ] Separar seeders de desarrollo vs producción
-- [ ] Documentar checklist de deployment en CLAUDE.md
+- [x] Separar seeders de desarrollo vs producción
+- [x] Documentar checklist de deployment en CLAUDE.md
 
 ### Cierre de versión
-- [ ] Visto bueno del usuario
-- [ ] `git commit` + `git tag v0.9.0` + `git push --tags`
+- [x] Visto bueno del usuario
+- [x] `git commit` + `git tag v0.9.0` + `git push --tags`
 
 ---
 

@@ -14,7 +14,7 @@ Repositorio: https://github.com/CornelioDev/cormart-factory
 
 ---
 
-## Estado actual: v0.8.2
+## Estado actual: v0.9.0
 
 El sistema está completamente operativo. Se mantienen dos instancias locales:
 
@@ -213,3 +213,31 @@ Flujo por versión:
 3. `git commit -m "chore: bump version to vX.X.X"`
 4. `git tag -a vX.X.X -m "..."`
 5. `git push origin master --tags`
+
+---
+
+## Checklist de Deployment (Producción — Namecheap Shared Hosting)
+
+### Pre-deployment
+1. Verificar que todos los tests pasan: `php artisan test`
+2. Configurar `.env` de producción: `APP_ENV=production`, `APP_DEBUG=false`, credenciales de BD
+3. Instalar dependencias sin dev: `composer install --no-dev --optimize-autoloader`
+
+### Primer deployment
+1. `php artisan migrate --force`
+2. `php artisan db:seed --force` (ejecuta solo seeders de producción gracias al guard de entorno)
+3. `php artisan shield:generate --all` (genera permisos para todos los resources)
+4. `php artisan storage:link`
+5. Crear usuario super_admin: `php artisan make:filament-user`
+6. Asignar rol super_admin al usuario vía tinker: `User::find(1)->assignRole('super_admin')`
+
+### Deployments subsecuentes
+1. `php artisan migrate --force`
+2. `php artisan shield:generate --all` (si se agregaron resources nuevos)
+3. Limpiar caches: `php artisan optimize:clear`
+
+### Restricciones del hosting
+- **Sin queue workers** — todas las operaciones son síncronas
+- **Sin scheduler** a menos que se configure cron en cPanel
+- Archivos subidos en `storage/app/public` con symlink vía `storage:link`
+- Verificar límites de PHP: `upload_max_filesize`, `post_max_size`, `memory_limit`

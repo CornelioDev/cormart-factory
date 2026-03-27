@@ -1,6 +1,6 @@
 # Roadmap Cormart Factory → v1.0.0
 
-> Actualizado: 2026-03-25 | Estado actual: **v0.8.2**
+> Actualizado: 2026-03-27 | Estado actual: **v0.9.0**
 
 ---
 
@@ -164,5 +164,5 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 | **v0.7.0** | Perfil de miembro — estado de cuenta | ✅ Completado |
 | **v0.8.0** | Dashboard financiero | ✅ Completado |
 | **v0.8.2** | Distribución por desembolsos + mejoras dashboard | ✅ Completado |
-| **v0.9.0** | Tests, bug fixes, preparación producción | Pendiente |
+| **v0.9.0** | Tests, bug fixes, preparación producción | ✅ Completado |
 | **v1.0.0** | QA y lanzamiento | Pendiente |
