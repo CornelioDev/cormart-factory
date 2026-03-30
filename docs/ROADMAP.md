@@ -1,6 +1,6 @@
 # Roadmap Cormart Factory → v1.0.0
 
-> Actualizado: 2026-03-27 | Estado actual: **v0.9.0**
+> Actualizado: 2026-03-30 | Estado actual: **v1.0.0** ✅ Lanzado
 
 ---
 

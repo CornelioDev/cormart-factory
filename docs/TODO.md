@@ -158,13 +158,26 @@
 
 ---
 
-## v1.0.0 — Lanzamiento
+## v1.0.0 — Lanzamiento ✅
 
-- [ ] QA completo en instancia `cormart_staging`
-- [ ] Corrección de todos los issues encontrados en QA
-- [ ] Actualizar CLAUDE.md: estado v1.0.0, fecha de lanzamiento
-- [ ] Visto bueno final del usuario
-- [ ] `git tag -a v1.0.0 -m "Release v1.0.0"`
-- [ ] `git push origin master --tags`
-- [ ] `gh release create v1.0.0 --title "Cormart Factory v1.0.0" --notes "..."`
-- [ ] Deploy a Namecheap
+### QA y correcciones
+- [x] QA automatizado: 99 unit tests + 58 E2E tests (Playwright)
+- [x] Fix: financiamientos desembolsados no pueden ser cancelados
+- [x] Fix: member no puede cobrar financiamientos
+- [x] Fix: widget muestra monto cobrado en vez de comisiones
+- [x] Fix: label "Pagar seleccionados" para company_user en cuentas por cobrar
+- [x] Fix: acciones visibles/ocultas según permisos del rol
+- [x] Implementar `FilamentUser` interface para acceso en producción
+
+### Despliegue
+- [x] Deploy a Namecheap shared hosting (factory.corneliodev.com)
+- [x] CI/CD con GitHub Actions (build + SSH deploy)
+- [x] SSL via Cloudflare
+- [x] Datos de producción importados desde staging
+
+### Cierre de versión
+- [x] Actualizar CLAUDE.md y ROADMAP.md
+- [x] Visto bueno final del usuario
+- [x] `git tag -a v1.0.0 -m "Release v1.0.0"`
+- [x] `git push origin master --tags`
+- [x] GitHub Release

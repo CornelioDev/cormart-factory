@@ -14,14 +14,14 @@ Repositorio: https://github.com/CornelioDev/cormart-factory
 
 ---
 
-## Estado actual: v0.9.0
+## Estado actual: v1.0.0 — Lanzado 2026-03-30
 
-El sistema está completamente operativo. Se mantienen dos instancias locales:
+El sistema está en producción en **factory.corneliodev.com** con CI/CD automático via GitHub Actions.
 
-| Instancia | BD | Propósito |
-|---|---|---|
-| Desarrollo | `cormart_factory` | Nuevas funcionalidades, datos de prueba |
-| Pre-producción | `cormart_staging` | Datos reales, QA |
+| Instancia | BD | URL | Propósito |
+|---|---|---|---|
+| Desarrollo | `cormart_factory` | localhost:8000 | Nuevas funcionalidades, datos de prueba |
+| Producción | `cornljge_cormart_factory` | factory.corneliodev.com | Datos reales, operación del negocio |
 
 ---
 
