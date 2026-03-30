@@ -125,9 +125,10 @@ class CuentasPorCobrarPage extends Page implements HasTable
             ])
             ->bulkActions([
                 BulkAction::make('collect_selected')
-                    ->label('Cobrar seleccionados')
+                    ->label(auth()->user()->hasRole('company_user') ? 'Pagar seleccionados' : 'Cobrar seleccionados')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
+                    ->visible(fn (): bool => auth()->user()->hasAnyRole(['super_admin', 'operator', 'company_user']))
                     ->action(function (Collection $records): void {
                         $companies = $records->pluck('company_id')->unique();
 

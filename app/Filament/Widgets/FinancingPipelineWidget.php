@@ -52,7 +52,7 @@ class FinancingPipelineWidget extends BaseWidget
                 ->icon('heroicon-o-arrow-path'),
 
             Stat::make('Cobrados · ' . now()->translatedFormat('M Y'), $collected->count())
-                ->description('RD$ ' . number_format($collected->sum('commission'), 2, '.', ',') . ' en comisiones')
+                ->description('RD$ ' . number_format($collected->sum('amount'), 2, '.', ',') . ' cobrados')
                 ->color('success')
                 ->icon('heroicon-o-check-circle'),
         ];

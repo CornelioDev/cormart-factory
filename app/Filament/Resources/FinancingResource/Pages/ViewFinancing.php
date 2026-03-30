@@ -33,7 +33,8 @@ class ViewFinancing extends ViewRecord
                 ->label(fn (): string => auth()->user()->hasRole('company_user') ? 'Pagar' : 'Cobrar')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->visible(fn (): bool => in_array($this->record->status, ['disbursed', 'partially_collected']))
+                ->visible(fn (): bool => in_array($this->record->status, ['disbursed', 'partially_collected'])
+                    && auth()->user()->hasAnyRole(['super_admin', 'operator', 'company_user']))
                 ->url(fn (): string => '/admin/transactions/create?' . http_build_query([
                     'type'          => 'collection',
                     'company_id'    => $this->record->company_id,
@@ -44,7 +45,8 @@ class ViewFinancing extends ViewRecord
                 ->label('Cancelar')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn (): bool => in_array($this->record->status, ['solicited', 'disbursed', 'partially_collected']))
+                ->visible(fn (): bool => $this->record->status === 'solicited'
+                    && auth()->user()->hasAnyRole(['super_admin', 'operator']))
                 ->requiresConfirmation()
                 ->modalHeading('Cancelar Financiamiento')
                 ->modalDescription('Esta acción no se puede deshacer. ¿Está seguro?')

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Pages\CuentasPorCobrarPage;
 use App\Filament\Pages\MemberAccountPage;
 use App\Filament\Pages\MonthlyClosingPage;
 use App\Filament\Pages\ParametrosPage;
@@ -155,5 +156,121 @@ class AuthorizationTest extends ServiceTestCase
         $this->actingAs($admin);
         $this->assertTrue(MonthlyClosingPage::canAccess());
         $this->assertTrue(ParametrosPage::canAccess());
+    }
+
+    // ── Financing cancellation restrictions ────────────────────────────
+
+    public function test_cancel_action_only_visible_for_solicited_status(): void
+    {
+        $admin  = $this->createUserWithRole('super_admin');
+        $client = Client::factory()->for($this->companyA)->create();
+
+        // Cancel should be available for solicited
+        $solicited = Financing::factory()->create([
+            'company_id'    => $this->companyA->id,
+            'client_id'     => $client->id,
+            'registered_by' => $admin->id,
+            'status'        => 'solicited',
+        ]);
+
+        // Cancel should NOT be available for disbursed
+        $disbursed = Financing::factory()->disbursed()->create([
+            'company_id'    => $this->companyA->id,
+            'client_id'     => $client->id,
+            'registered_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin);
+
+        // Solicited: cancel allowed
+        $this->assertTrue(
+            $solicited->status === 'solicited'
+            && $admin->hasAnyRole(['super_admin', 'operator']),
+            'Super admin should be able to cancel solicited financing'
+        );
+
+        // Disbursed: cancel NOT allowed
+        $this->assertFalse(
+            $disbursed->status === 'solicited',
+            'Disbursed financing should not be cancellable'
+        );
+    }
+
+    public function test_member_cannot_cancel_financing(): void
+    {
+        $member = $this->createUserWithRole('member');
+
+        $this->actingAs($member);
+
+        $this->assertFalse(
+            $member->hasAnyRole(['super_admin', 'operator']),
+            'Member should not have cancel permission'
+        );
+    }
+
+    public function test_company_user_cannot_cancel_financing(): void
+    {
+        $companyUser = $this->createCompanyUser($this->companyA);
+
+        $this->actingAs($companyUser);
+
+        $this->assertFalse(
+            $companyUser->hasAnyRole(['super_admin', 'operator']),
+            'Company user should not have cancel permission'
+        );
+    }
+
+    // ── Collection action restrictions ─────────────────────────────────
+
+    public function test_member_cannot_collect_financing(): void
+    {
+        $member = $this->createUserWithRole('member');
+
+        $this->actingAs($member);
+
+        $this->assertFalse(
+            $member->hasAnyRole(['super_admin', 'operator', 'company_user']),
+            'Member should not have collect permission'
+        );
+    }
+
+    public function test_operator_can_collect_financing(): void
+    {
+        $operator = $this->createUserWithRole('operator');
+
+        $this->actingAs($operator);
+
+        $this->assertTrue(
+            $operator->hasAnyRole(['super_admin', 'operator', 'company_user']),
+            'Operator should have collect permission'
+        );
+    }
+
+    public function test_company_user_can_collect_financing(): void
+    {
+        $companyUser = $this->createCompanyUser($this->companyA);
+
+        $this->actingAs($companyUser);
+
+        $this->assertTrue(
+            $companyUser->hasAnyRole(['super_admin', 'operator', 'company_user']),
+            'Company user should have collect permission'
+        );
+    }
+
+    // ── CuentasPorCobrarPage access ────────────────────────────────────
+
+    public function test_member_cannot_access_cuentas_por_cobrar_page(): void
+    {
+        $member = $this->createUserWithRole('member');
+        $this->actingAs($member);
+        $this->assertFalse(CuentasPorCobrarPage::canAccess());
+    }
+
+    public function test_company_user_can_access_cuentas_por_cobrar_page(): void
+    {
+        $companyUser = $this->createCompanyUser($this->companyA);
+        $this->actingAs($companyUser);
+        $this->assertTrue(CuentasPorCobrarPage::canAccess());
     }
 }

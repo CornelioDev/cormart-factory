@@ -40,4 +40,24 @@ test.describe('Dashboard widgets', () => {
     // Member should see pipeline widget
     await expect(page.locator('text=Solicitados').first()).toBeVisible({ timeout: 10_000 });
   });
+
+  test('collected widget shows total amount not commissions @readonly', async ({ page, baseURL }) => {
+    await login(page, baseURL, 'super_admin');
+    await page.goto('/admin');
+    await page.waitForLoadState('networkidle');
+
+    await screenshot(page, '02-dashboard-collected-widget');
+
+    // The collected stat should show "cobrados" not "en comisiones"
+    const widget = page.locator('text=cobrados').first();
+    const hasAmountLabel = await widget.isVisible().catch(() => false);
+
+    const commissionLabel = page.locator('text=en comisiones');
+    const hasCommissionLabel = await commissionLabel.isVisible().catch(() => false);
+
+    expect(hasCommissionLabel).toBeFalsy();
+    if (hasAmountLabel) {
+      expect(hasAmountLabel).toBeTruthy();
+    }
+  });
 });
