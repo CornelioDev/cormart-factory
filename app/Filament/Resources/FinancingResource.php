@@ -168,7 +168,7 @@ class FinancingResource extends Resource
                 ->required()
                 ->numeric()
                 ->default($defaultTerm)
-                ->live()
+                ->live(onBlur: true)
                 ->afterStateUpdated(function (Get $get, Set $set, $state) {
                     $date = $get('request_date');
                     if ($date) {
