@@ -155,8 +155,9 @@ class FinancingResource extends Resource
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null)
                 ->afterStateUpdated(function (Get $get, Set $set, $state) {
                     $amount = (float) str_replace(',', '', $state);
+                    $termDays = (int) ($get('term_days') ?? 15);
                     $service = new FinancingService();
-                    $commission = $service->calculateCommission($amount);
+                    $commission = $service->calculateCommission($amount, $termDays);
                     $transferAmount = $service->calculateTransferAmount($amount, $commission);
                     $set('commission', number_format($commission, 2, '.', ','));
                     $set('transfer_amount', number_format($transferAmount, 2, '.', ','));
@@ -173,10 +174,19 @@ class FinancingResource extends Resource
                     if ($date) {
                         $set('due_date', Carbon::parse($date)->addDays((int) $state)->format('Y-m-d'));
                     }
+
+                    $amount = (float) str_replace(',', '', $get('amount') ?? '0');
+                    if ($amount > 0) {
+                        $service = new FinancingService();
+                        $commission = $service->calculateCommission($amount, (int) $state);
+                        $transferAmount = $service->calculateTransferAmount($amount, $commission);
+                        $set('commission', number_format($commission, 2, '.', ','));
+                        $set('transfer_amount', number_format($transferAmount, 2, '.', ','));
+                    }
                 }),
 
             TextInput::make('commission')
-                ->label('Comisión (5%)')
+                ->label('Comisión')
                 ->prefix('RD$')
                 ->disabled()
                 ->dehydrated()

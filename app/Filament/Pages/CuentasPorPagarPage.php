@@ -68,7 +68,7 @@ class CuentasPorPagarPage extends Page implements HasTable
                     ->sortable(),
 
                 TextColumn::make('commission')
-                    ->label('Comisión (5%)')
+                    ->label('Comisión')
                     ->money('DOP', locale: 'es_DO'),
 
                 TextColumn::make('transfer_amount')

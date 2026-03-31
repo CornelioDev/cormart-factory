@@ -17,17 +17,57 @@ class FinancingServiceTest extends ServiceTestCase
         $this->service = new FinancingService();
     }
 
-    public function test_commission_is_5_percent_of_amount(): void
+    // ── Commission by term tiers (5% per 30-day block) ──────────────────
+
+    public function test_commission_is_5_percent_for_15_days(): void
     {
-        $commission = $this->service->calculateCommission(100000.00);
+        $commission = $this->service->calculateCommission(100000.00, 15);
         $this->assertEquals(5000.00, $commission);
+    }
+
+    public function test_commission_is_5_percent_for_30_days(): void
+    {
+        $commission = $this->service->calculateCommission(100000.00, 30);
+        $this->assertEquals(5000.00, $commission);
+    }
+
+    public function test_commission_is_10_percent_for_31_days(): void
+    {
+        $commission = $this->service->calculateCommission(100000.00, 31);
+        $this->assertEquals(10000.00, $commission);
+    }
+
+    public function test_commission_is_10_percent_for_60_days(): void
+    {
+        $commission = $this->service->calculateCommission(100000.00, 60);
+        $this->assertEquals(10000.00, $commission);
+    }
+
+    public function test_commission_is_15_percent_for_61_days(): void
+    {
+        $commission = $this->service->calculateCommission(100000.00, 61);
+        $this->assertEquals(15000.00, $commission);
+    }
+
+    public function test_commission_is_15_percent_for_90_days(): void
+    {
+        $commission = $this->service->calculateCommission(100000.00, 90);
+        $this->assertEquals(15000.00, $commission);
     }
 
     public function test_commission_rounds_to_2_decimal_places(): void
     {
-        $commission = $this->service->calculateCommission(33333.33);
+        $commission = $this->service->calculateCommission(33333.33, 15);
         $this->assertEquals(1666.67, $commission);
     }
+
+    public function test_commission_rounds_correctly_for_multi_tier(): void
+    {
+        $commission = $this->service->calculateCommission(33333.33, 45);
+        $this->assertEquals(3333.33, $commission);
+    }
+
+    // ── Transfer amount ─────────────────────────────────────────────────
 
     public function test_transfer_amount_equals_amount_minus_commission(): void
     {
@@ -40,6 +80,8 @@ class FinancingServiceTest extends ServiceTestCase
         $transfer = $this->service->calculateTransferAmount(5000.00, 5000.00);
         $this->assertEquals(0.00, $transfer);
     }
+
+    // ── Due date ────────────────────────────────────────────────────────
 
     public function test_due_date_adds_correct_number_of_days(): void
     {

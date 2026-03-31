@@ -7,11 +7,12 @@ use Carbon\Carbon;
 
 class FinancingService
 {
-    public function calculateCommission(float $amount): float
+    public function calculateCommission(float $amount, int $termDays): float
     {
         $rate = (float) Parameter::where('key', 'commission_pct')->value('value');
+        $multiplier = (int) ceil($termDays / 30);
 
-        return round($amount * ($rate / 100), 2);
+        return round($amount * ($rate / 100) * $multiplier, 2);
     }
 
     public function calculateTransferAmount(float $amount, float $commission): float

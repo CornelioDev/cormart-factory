@@ -56,6 +56,89 @@ test.describe('Financings - create (dev only)', () => {
 
     await expect(page.locator('text=/Crear Financiamiento|Crear/i').first()).toBeVisible({ timeout: 10_000 });
   });
+
+  test('commission scales by 30-day tiers when changing amount', async ({ page, baseURL }) => {
+    if (baseURL?.includes('ngrok')) test.skip();
+
+    await login(page, baseURL, 'super_admin');
+    await page.goto('/admin/financings/create');
+    await page.waitForLoadState('networkidle');
+
+    const amountInput = page.getByLabel('Monto a Financiar');
+    const termInput = page.getByLabel('Plazo (días)');
+    const commissionInput = page.getByLabel('Comisión');
+    const transferInput = page.getByLabel('Monto a Transferir');
+
+    // Default term is 15 days → 1 tier → 5%
+    await amountInput.click();
+    await amountInput.fill('100000');
+    await amountInput.blur();
+    await page.waitForTimeout(500);
+
+    await expect(commissionInput).toHaveValue('5,000.00');
+    await expect(transferInput).toHaveValue('95,000.00');
+
+    await screenshot(page, '04-commission-15days-5pct');
+  });
+
+  test('commission scales by 30-day tiers when changing term', async ({ page, baseURL }) => {
+    if (baseURL?.includes('ngrok')) test.skip();
+
+    await login(page, baseURL, 'super_admin');
+    await page.goto('/admin/financings/create');
+    await page.waitForLoadState('networkidle');
+
+    const amountInput = page.getByLabel('Monto a Financiar');
+    const termInput = page.getByLabel('Plazo (días)');
+    const commissionInput = page.getByLabel('Comisión');
+    const transferInput = page.getByLabel('Monto a Transferir');
+
+    // Fill amount first with default 15-day term
+    await amountInput.click();
+    await amountInput.fill('100000');
+    await amountInput.blur();
+    await page.waitForTimeout(500);
+
+    // Change term to 30 days → still 1 tier → 5%
+    await termInput.click();
+    await termInput.fill('30');
+    await termInput.blur();
+    await page.waitForTimeout(500);
+
+    await expect(commissionInput).toHaveValue('5,000.00');
+    await expect(transferInput).toHaveValue('95,000.00');
+
+    // Change term to 45 days → 2 tiers → 10%
+    await termInput.click();
+    await termInput.fill('45');
+    await termInput.blur();
+    await page.waitForTimeout(500);
+
+    await expect(commissionInput).toHaveValue('10,000.00');
+    await expect(transferInput).toHaveValue('90,000.00');
+
+    await screenshot(page, '04-commission-45days-10pct');
+
+    // Change term to 60 days → still 2 tiers → 10%
+    await termInput.click();
+    await termInput.fill('60');
+    await termInput.blur();
+    await page.waitForTimeout(500);
+
+    await expect(commissionInput).toHaveValue('10,000.00');
+    await expect(transferInput).toHaveValue('90,000.00');
+
+    // Change term to 90 days → 3 tiers → 15%
+    await termInput.click();
+    await termInput.fill('90');
+    await termInput.blur();
+    await page.waitForTimeout(500);
+
+    await expect(commissionInput).toHaveValue('15,000.00');
+    await expect(transferInput).toHaveValue('85,000.00');
+
+    await screenshot(page, '04-commission-90days-15pct');
+  });
 });
 
 test.describe('Financings - action visibility by role', () => {
