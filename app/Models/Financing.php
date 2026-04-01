@@ -20,6 +20,8 @@ class Financing extends Model
         'commission',
         'transfer_amount',
         'collected_amount',
+        'late_fee_amount',
+        'late_fee_pending',
         'term_days',
         'request_date',
         'due_date',
@@ -36,7 +38,9 @@ class Financing extends Model
         'amount'           => 'decimal:2',
         'commission'       => 'decimal:2',
         'transfer_amount'  => 'decimal:2',
-        'collected_amount' => 'decimal:2',
+        'collected_amount'  => 'decimal:2',
+        'late_fee_amount'   => 'decimal:2',
+        'late_fee_pending'  => 'decimal:2',
         'request_date'     => 'date',
         'due_date'         => 'date',
         'disbursed_at'     => 'date',
@@ -81,5 +85,13 @@ class Financing extends Model
     public function remainingBalance(): float
     {
         return round((float) $this->amount - (float) $this->collected_amount, 2);
+    }
+
+    public function totalOwed(\Carbon\Carbon $asOfDate = null): float
+    {
+        $balance = $this->remainingBalance();
+        $lateFee = app(\App\Services\FinancingService::class)->calculateLateFee($this, $asOfDate ?? now());
+
+        return round($balance + $lateFee, 2);
     }
 }

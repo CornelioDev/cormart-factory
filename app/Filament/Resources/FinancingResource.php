@@ -315,6 +315,24 @@ class FinancingResource extends Resource
                         ->weight(\Filament\Support\Enums\FontWeight::Bold)
                         ->visible(fn (Financing $record): bool => $record->status === 'partially_collected'),
 
+                    TextEntry::make('late_fee_amount')
+                        ->label('Mora Cobrada')
+                        ->money('DOP', locale: 'es_DO')
+                        ->visible(fn (Financing $record): bool => (float) $record->late_fee_amount > 0),
+
+                    TextEntry::make('late_fee_estimated')
+                        ->label('Mora Estimada')
+                        ->state(fn (Financing $record): string =>
+                            'RD$ ' . number_format($record->totalOwed() - $record->remainingBalance(), 2, '.', ',')
+                        )
+                        ->color('danger')
+                        ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                        ->visible(fn (Financing $record): bool =>
+                            in_array($record->status, ['disbursed', 'partially_collected'])
+                            && $record->due_date
+                            && $record->due_date->lt(now())
+                        ),
+
                     TextEntry::make('term_days')
                         ->label('Plazo')
                         ->suffix(' días'),

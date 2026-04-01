@@ -543,4 +543,71 @@ class TransactionServiceTest extends ServiceTestCase
 
         $this->assertEquals(7.50, (float) $taxExpense->amount);
     }
+
+    // ── Late fee tests ───────────────────────────────────────────────────
+
+    private function createOverdueFinancing(float $amount = 100000.00, string $dueDate = '2026-01-01'): Financing
+    {
+        return Financing::factory()->withAmount($amount)->disbursed()->create([
+            'company_id'    => $this->company->id,
+            'client_id'     => $this->client->id,
+            'registered_by' => $this->operator->id,
+            'due_date'      => $dueDate,
+        ]);
+    }
+
+    public function test_collection_without_late_fee_when_not_overdue(): void
+    {
+        $this->actingAs($this->operator);
+        $financing = $this->createDisbursedFinancing(100000.00);
+
+        $data = $this->collectionData();
+        $data['transaction_date'] = $financing->due_date->subDay()->format('Y-m-d');
+        $this->service->create($data, [$financing->id]);
+
+        $f = $financing->fresh();
+        $this->assertEquals(100000.00, (float) $f->collected_amount);
+        $this->assertEquals(0.00, (float) $f->late_fee_amount);
+        $this->assertEquals(0.00, (float) $f->late_fee_pending);
+    }
+
+    public function test_full_collection_with_late_fee_distributes_proportionally(): void
+    {
+        $this->actingAs($this->operator);
+        // Due Jan 1, collect Feb 15 → 45 days → 2 tiers → 10% mora
+        $financing = $this->createOverdueFinancing(100000.00, '2026-01-01');
+
+        // Mora = 100,000 × 5% × 2 = 10,000. Total owed = 110,000
+        // Pay the full 110,000
+        $data = $this->collectionData();
+        $data['amount'] = 110000.00;
+        $data['transaction_date'] = '2026-02-15';
+        $this->service->create($data, [$financing->id]);
+
+        $f = $financing->fresh();
+        $this->assertEquals('collected', $f->status);
+        $this->assertEquals(100000.00, (float) $f->collected_amount);
+        $this->assertEquals(10000.00, (float) $f->late_fee_amount);
+        $this->assertEquals(0.00, (float) $f->late_fee_pending);
+    }
+
+    public function test_partial_collection_with_late_fee_distributes_proportionally(): void
+    {
+        $this->actingAs($this->operator);
+        // Due Jan 1, collect Feb 15 → 45 days → 2 tiers → 10% mora
+        $financing = $this->createOverdueFinancing(100000.00, '2026-01-01');
+
+        // Mora = 10,000. Total owed = 110,000. Pay 50,000
+        // Capital: 50,000 × (100,000 / 110,000) = 45,454.55
+        // Late fee: 50,000 × (10,000 / 110,000) = 4,545.45
+        $data = $this->collectionData();
+        $data['amount'] = 50000.00;
+        $data['transaction_date'] = '2026-02-15';
+        $this->service->create($data, [$financing->id]);
+
+        $f = $financing->fresh();
+        $this->assertEquals('partially_collected', $f->status);
+        $this->assertEquals(45454.55, (float) $f->collected_amount);
+        $this->assertEquals(4545.45, (float) $f->late_fee_amount);
+    }
 }

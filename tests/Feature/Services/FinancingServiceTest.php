@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Services;
 
+use App\Models\Client;
+use App\Models\Company;
+use App\Models\Financing;
+use App\Models\User;
 use App\Services\FinancingService;
 use Carbon\Carbon;
 use Tests\ServiceTestCase;
@@ -99,5 +103,74 @@ class FinancingServiceTest extends ServiceTestCase
         $this->assertEquals('2026-02-15', $dueDate->format('Y-m-d'));
         // Original date should not be mutated
         $this->assertEquals('2026-01-31', $date->format('Y-m-d'));
+    }
+
+    // ── Late fee ────────────────────────────────────────────────────────
+
+    private function createDisbursedFinancing(array $overrides = []): Financing
+    {
+        $company = Company::factory()->create();
+
+        return Financing::factory()->disbursed()->create(array_merge([
+            'company_id'    => $company->id,
+            'client_id'     => Client::factory()->for($company)->create()->id,
+            'registered_by' => User::factory()->create()->id,
+            'amount'        => 100000.00,
+            'due_date'      => Carbon::parse('2026-01-01'),
+        ], $overrides));
+    }
+
+    public function test_late_fee_is_zero_when_not_overdue(): void
+    {
+        $financing = $this->createDisbursedFinancing(['due_date' => Carbon::parse('2026-02-01')]);
+        $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-15'));
+
+        $this->assertEquals(0.00, $fee);
+    }
+
+    public function test_late_fee_is_zero_on_due_date(): void
+    {
+        $financing = $this->createDisbursedFinancing(['due_date' => Carbon::parse('2026-01-01')]);
+        $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-01'));
+
+        $this->assertEquals(0.00, $fee);
+    }
+
+    public function test_late_fee_one_tier_15_days_overdue(): void
+    {
+        $financing = $this->createDisbursedFinancing();
+        $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-16'));
+
+        // 15 days overdue → ceil(15/30) = 1 tier → 100,000 × 5% × 1 = 5,000
+        $this->assertEquals(5000.00, $fee);
+    }
+
+    public function test_late_fee_one_tier_30_days_overdue(): void
+    {
+        $financing = $this->createDisbursedFinancing();
+        $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-31'));
+
+        // 30 days → ceil(30/30) = 1 tier → 5,000
+        $this->assertEquals(5000.00, $fee);
+    }
+
+    public function test_late_fee_two_tiers_45_days_overdue(): void
+    {
+        $financing = $this->createDisbursedFinancing();
+        $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-02-15'));
+
+        // 45 days → ceil(45/30) = 2 tiers → 100,000 × 5% × 2 = 10,000
+        $this->assertEquals(10000.00, $fee);
+    }
+
+    public function test_late_fee_on_partial_balance(): void
+    {
+        $financing = $this->createDisbursedFinancing([
+            'collected_amount' => 40000.00,
+        ]);
+        $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-16'));
+
+        // Balance = 60,000, 15 days → 1 tier → 60,000 × 5% × 1 = 3,000
+        $this->assertEquals(3000.00, $fee);
     }
 }
