@@ -68,7 +68,8 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->searchable()
                     ->sortable()
                     ->copyable()
-                    ->fontFamily('mono'),
+                    ->fontFamily('mono')
+                    ->url(fn (Financing $record): string => route('filament.admin.resources.financings.view', $record)),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')

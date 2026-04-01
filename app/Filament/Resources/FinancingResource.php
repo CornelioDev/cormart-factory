@@ -159,8 +159,11 @@ class FinancingResource extends Resource
                     $service = new FinancingService();
                     $commission = $service->calculateCommission($amount, $termDays);
                     $transferAmount = $service->calculateTransferAmount($amount, $commission);
+                    $multiplier = (int) ceil($termDays / 30);
+                    $rate = (float) \App\Models\Parameter::where('key', 'commission_pct')->value('value');
                     $set('commission', number_format($commission, 2, '.', ','));
                     $set('transfer_amount', number_format($transferAmount, 2, '.', ','));
+                    $set('commission_pct_display', number_format($rate * $multiplier, 2) . '%');
                 }),
 
             TextInput::make('term_days')
@@ -177,17 +180,24 @@ class FinancingResource extends Resource
 
                     $amount = (float) str_replace(',', '', $get('amount') ?? '0');
                     if ($amount > 0) {
+                        $termDays = (int) $state;
                         $service = new FinancingService();
-                        $commission = $service->calculateCommission($amount, (int) $state);
+                        $commission = $service->calculateCommission($amount, $termDays);
                         $transferAmount = $service->calculateTransferAmount($amount, $commission);
+                        $multiplier = (int) ceil($termDays / 30);
+                        $rate = (float) \App\Models\Parameter::where('key', 'commission_pct')->value('value');
                         $set('commission', number_format($commission, 2, '.', ','));
                         $set('transfer_amount', number_format($transferAmount, 2, '.', ','));
+                        $set('commission_pct_display', number_format($rate * $multiplier, 2) . '%');
                     }
                 }),
+
+            \Filament\Forms\Components\Hidden::make('commission_pct_display'),
 
             TextInput::make('commission')
                 ->label('Comisión')
                 ->prefix('RD$')
+                ->hint(fn (Get $get): string => $get('commission_pct_display') ?? '')
                 ->disabled()
                 ->dehydrated()
                 ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
