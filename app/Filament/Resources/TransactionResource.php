@@ -176,8 +176,8 @@ class TransactionResource extends Resource
                 ->afterStateUpdated(function (Get $get, Set $set, array $state): void {
                     $type = $get('type');
                     if ($type === 'collection') {
-                        $remaining = (new TransactionService())->calculateRemainingBalance($state);
-                        $set('amount', $remaining > 0 ? number_format($remaining, 2, '.', ',') : null);
+                        $total = (new TransactionService())->calculateTotalOwed($state);
+                        $set('amount', $total > 0 ? number_format($total, 2, '.', ',') : null);
                     } else {
                         $amount = (new TransactionService())->calculateAmount($type ?? '', $state);
                         $set('amount', $amount > 0 ? number_format($amount, 2, '.', ',') : null);
@@ -188,14 +188,24 @@ class TransactionResource extends Resource
 
             // ── Balance pendiente (solo para cobros) ───────────────────────
             Placeholder::make('remaining_balance')
-                ->label('Balance Pendiente')
+                ->label('Total Adeudado')
                 ->content(function (Get $get): string {
                     $ids = $get('financing_ids') ?? [];
                     if (empty($ids) || $get('type') !== 'collection') {
                         return '—';
                     }
-                    $remaining = (new TransactionService())->calculateRemainingBalance($ids);
-                    return 'RD$ ' . number_format($remaining, 2, '.', ',');
+                    $service   = new TransactionService();
+                    $capital   = $service->calculateRemainingBalance($ids);
+                    $lateFee   = $service->calculateTotalOwed($ids) - $capital;
+                    $total     = $capital + $lateFee;
+
+                    if ($lateFee > 0) {
+                        return 'RD$ ' . number_format($total, 2, '.', ',')
+                            . ' (Capital: RD$ ' . number_format($capital, 2, '.', ',')
+                            . ' + Mora: RD$ ' . number_format($lateFee, 2, '.', ',') . ')';
+                    }
+
+                    return 'RD$ ' . number_format($capital, 2, '.', ',');
                 })
                 ->visible(fn (Get $get): bool => $get('type') === 'collection'),
 
@@ -221,7 +231,7 @@ class TransactionResource extends Resource
                         return null;
                     }
                     if ($qType === 'collection') {
-                        $amount = (new TransactionService())->calculateRemainingBalance($qFinancingIds);
+                        $amount = (new TransactionService())->calculateTotalOwed($qFinancingIds);
                     } else {
                         $amount = (new TransactionService())->calculateAmount($qType, $qFinancingIds);
                     }

@@ -294,4 +294,20 @@ class TransactionService
 
         return (float) $financings->sum(fn (Financing $f) => $f->remainingBalance());
     }
+
+    /**
+     * Calcula el total adeudado (capital + mora estimada) para una lista de financiamientos.
+     */
+    public function calculateTotalOwed(array $financingIds, Carbon $asOfDate = null): float
+    {
+        if (empty($financingIds)) {
+            return 0.0;
+        }
+
+        $asOfDate = $asOfDate ?? Carbon::now();
+        $financings = Financing::whereIn('id', $financingIds)->get();
+        $service = new FinancingService();
+
+        return (float) $financings->sum(fn (Financing $f) => $f->remainingBalance() + $service->calculateLateFee($f, $asOfDate));
+    }
 }

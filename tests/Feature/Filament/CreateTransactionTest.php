@@ -75,9 +75,36 @@ class CreateTransactionTest extends ServiceTestCase
     {
         $this->assertEquals(0.0, $this->service->calculateAmount('disbursement', []));
         $this->assertEquals(0.0, $this->service->calculateRemainingBalance([]));
+        $this->assertEquals(0.0, $this->service->calculateTotalOwed([]));
     }
 
     // ── Amount calculation tests (collection) ───────────────────────────────
+
+    public function test_calculate_total_owed_equals_balance_when_not_overdue(): void
+    {
+        $this->seedParameters();
+        $financing = $this->createDisbursedFinancing(100000.00);
+
+        $total = $this->service->calculateTotalOwed([$financing->id]);
+
+        $this->assertEquals(100000.00, $total);
+    }
+
+    public function test_calculate_total_owed_includes_late_fee_when_overdue(): void
+    {
+        $this->seedParameters();
+        $financing = Financing::factory()->withAmount(100000.00)->disbursed()->create([
+            'company_id'    => $this->company->id,
+            'client_id'     => $this->client->id,
+            'registered_by' => $this->operator->id,
+            'due_date'      => now()->subDays(45),
+        ]);
+
+        // 45 days overdue → 2 tiers → 5% × 2 = 10% mora → 10,000
+        $total = $this->service->calculateTotalOwed([$financing->id]);
+
+        $this->assertEquals(110000.00, $total);
+    }
 
     public function test_calculate_remaining_balance_for_full_amount(): void
     {
