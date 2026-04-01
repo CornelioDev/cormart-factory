@@ -125,7 +125,7 @@ class ParametrosPage extends Page implements HasForms
                             ->maxValue(100)
                             ->step(0.01)
                             ->required()
-                            ->helperText('% sobre saldo pendiente por cada 30 días de atraso.'),
+                            ->helperText('Porcentaje sobre saldo pendiente por cada 30 días de atraso.'),
                     ]),
             ])
             ->statePath('data');
