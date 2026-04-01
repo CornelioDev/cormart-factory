@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\CuentasPorCobrarStatsWidget;
 use App\Models\Financing;
+use App\Services\FinancingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Actions\BulkAction;
@@ -55,7 +56,7 @@ class CuentasPorCobrarPage extends Page implements HasTable
         $companyId = $user->hasRole('company_user') ? $user->company_id : null;
 
         $query = Financing::query()
-            ->where('status', 'disbursed')
+            ->whereIn('status', ['disbursed', 'partially_collected'])
             ->when($companyId, fn (Builder $q) => $q->where('company_id', $companyId))
             ->orderBy('due_date');
 
@@ -67,7 +68,8 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->searchable()
                     ->sortable()
                     ->copyable()
-                    ->fontFamily('mono'),
+                    ->fontFamily('mono')
+                    ->url(fn (Financing $record): string => route('filament.admin.resources.financings.view', $record)),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
@@ -116,6 +118,15 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->color(fn (Financing $record): string =>
                         $record->due_date->isPast() ? 'danger' : 'gray'
                     ),
+
+                TextColumn::make('late_fee_estimated')
+                    ->label('Mora Estimada')
+                    ->state(function (Financing $record): string {
+                        $fee = (new FinancingService())->calculateLateFee($record, now());
+                        return 'RD$ ' . number_format($fee, 2, '.', ',');
+                    })
+                    ->color('danger')
+                    ->visible(fn (): bool => ! auth()->user()->hasRole('company_user')),
             ])
             ->filters([
                 SelectFilter::make('company_id')
