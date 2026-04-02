@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\CuentasPorCobrarStatsWidget;
 use App\Models\Financing;
+use App\Services\FinancingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Actions\BulkAction;
@@ -55,7 +56,7 @@ class CuentasPorCobrarPage extends Page implements HasTable
         $companyId = $user->hasRole('company_user') ? $user->company_id : null;
 
         $query = Financing::query()
-            ->where('status', 'disbursed')
+            ->whereIn('status', ['disbursed', 'partially_collected'])
             ->when($companyId, fn (Builder $q) => $q->where('company_id', $companyId))
             ->orderBy('due_date');
 
@@ -67,38 +68,45 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->searchable()
                     ->sortable()
                     ->copyable()
-                    ->fontFamily('mono'),
+                    ->fontFamily('mono')
+                    ->toggleable(),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
                     ->hidden(fn (): bool => auth()->user()->hasRole('company_user'))
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('client.name')
                     ->label('Deudor')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('amount')
                     ->label('Monto Financiado')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('transfer_amount')
                     ->label('Monto Desembolsado')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('commission')
                     ->label('Comisión')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('disbursed_at')
                     ->label('Fecha Desembolso')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('due_date')
                     ->label('Vencimiento')
@@ -106,7 +114,8 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->color(fn (Financing $record): string =>
                         $record->due_date->isPast() ? 'danger' : 'success'
                     )
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('days_outstanding')
                     ->label('Días en Calle')
@@ -115,7 +124,18 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     )
                     ->color(fn (Financing $record): string =>
                         $record->due_date->isPast() ? 'danger' : 'gray'
-                    ),
+                    )
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('late_fee_estimated')
+                    ->label('Mora Estimada')
+                    ->state(function (Financing $record): string {
+                        $fee = (new FinancingService())->calculateLateFee($record, now());
+                        return 'RD$ ' . number_format($fee, 2, '.', ',');
+                    })
+                    ->color('danger')
+                    ->visible(fn (): bool => ! auth()->user()->hasRole('company_user'))
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('company_id')
@@ -148,6 +168,7 @@ class CuentasPorCobrarPage extends Page implements HasTable
                         ]));
                     }),
             ])
+            ->recordUrl(fn (Financing $record): string => route('filament.admin.resources.financings.view', $record))
             ->emptyStateHeading('Sin cuentas por cobrar')
             ->emptyStateDescription('No hay financiamientos desembolsados pendientes de cobro.')
             ->emptyStateIcon('heroicon-o-check-circle');

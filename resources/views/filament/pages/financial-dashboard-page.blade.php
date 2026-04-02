@@ -387,9 +387,12 @@
                                 <td colspan="4" class="fd-muted" style="padding:10px 16px;font-weight:600">Reserva del fondo</td>
                                 <td class="fd-text" style="padding:10px 16px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['reserve'], 2, '.', ',') }}</td>
                             </tr>
+                            @php
+                                $totalDistributed = collect($snapshot['distributions'])->sum('total_amount') + $snapshot['reserve'];
+                            @endphp
                             <tr class="fd-row-green">
-                                <td colspan="4" class="fd-text" style="padding:10px 16px;font-weight:700">Total Comisiones</td>
-                                <td class="fd-color-success" style="padding:10px 16px;text-align:right;font-weight:700">RD$ {{ number_format($snapshot['total_commissions'], 2, '.', ',') }}</td>
+                                <td colspan="4" class="fd-text" style="padding:10px 16px;font-weight:700">Total Distribuido</td>
+                                <td class="{{ $totalDistributed >= 0 ? 'fd-color-success' : 'fd-color-danger' }}" style="padding:10px 16px;text-align:right;font-weight:700">RD$ {{ number_format($totalDistributed, 2, '.', ',') }}</td>
                             </tr>
                         </tbody>
                     </table>

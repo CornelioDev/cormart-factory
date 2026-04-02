@@ -159,24 +159,41 @@ class TransactionService
 
     /**
      * Aplica el cobro a los financiamientos vinculados a la transacción.
+     * Incluye cálculo de mora proporcional para financiamientos vencidos.
      */
     private function applyCollectionToFinancings(Transaction $transaction): void
     {
         $financings = $transaction->financings;
         $date = Carbon::parse($transaction->transaction_date);
         $transactionAmount = (float) $transaction->amount;
+        $financingService = new FinancingService();
 
-        $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings) {
+        $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings, $financingService) {
             $totalRemaining = $financings->sum(fn ($fin) => $fin->remainingBalance());
             $paymentForThis = $financings->count() === 1
                 ? $transactionAmount
                 : round($transactionAmount * ($f->remainingBalance() / max($totalRemaining, 0.01)), 2);
 
-            $newCollected = round((float) $f->collected_amount + $paymentForThis, 2);
+            $balance = $f->remainingBalance();
+            $lateFee = $financingService->calculateLateFee($f, $date);
+            $totalOwed = $balance + $lateFee;
+
+            if ($lateFee > 0 && $totalOwed > 0) {
+                // Distribución proporcional entre capital y mora
+                $toCapital  = round($paymentForThis * ($balance / $totalOwed), 2);
+                $toLateFee  = round($paymentForThis - $toCapital, 2);
+            } else {
+                $toCapital  = $paymentForThis;
+                $toLateFee  = 0.00;
+            }
+
+            $newCollected = round((float) $f->collected_amount + $toCapital, 2);
             $isFullyPaid  = $newCollected >= (float) $f->amount;
 
             $f->update([
                 'collected_amount'  => min($newCollected, (float) $f->amount),
+                'late_fee_amount'   => round((float) $f->late_fee_amount + $toLateFee, 2),
+                'late_fee_pending'  => round($lateFee - $toLateFee, 2),
                 'status'            => $isFullyPaid ? 'collected' : 'partially_collected',
                 'collected_at'      => $isFullyPaid ? $date : null,
                 'collection_period' => $isFullyPaid ? $date->format('Y-m') : null,
@@ -276,5 +293,21 @@ class TransactionService
         $financings = Financing::whereIn('id', $financingIds)->get();
 
         return (float) $financings->sum(fn (Financing $f) => $f->remainingBalance());
+    }
+
+    /**
+     * Calcula el total adeudado (capital + mora estimada) para una lista de financiamientos.
+     */
+    public function calculateTotalOwed(array $financingIds, Carbon $asOfDate = null): float
+    {
+        if (empty($financingIds)) {
+            return 0.0;
+        }
+
+        $asOfDate = $asOfDate ?? Carbon::now();
+        $financings = Financing::whereIn('id', $financingIds)->get();
+        $service = new FinancingService();
+
+        return (float) $financings->sum(fn (Financing $f) => $f->remainingBalance() + $service->calculateLateFee($f, $asOfDate));
     }
 }

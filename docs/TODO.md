@@ -181,3 +181,54 @@
 - [x] `git tag -a v1.0.0 -m "Release v1.0.0"`
 - [x] `git push origin master --tags`
 - [x] GitHub Release
+
+---
+
+## v1.1.0 — Comisión escalonada por plazo ✅
+
+### Lógica de negocio
+- [x] `FinancingService`: comisión escalonada por tramos de 30 días (5% ≤30d, 10% ≤60d, 15% ≤90d)
+
+### Cierre de versión
+- [x] `git tag -a v1.1.0` + `git push origin master --tags`
+
+---
+
+## v1.1.1 — Fix campo term_days ✅
+
+### Bug fix
+- [x] Fix: campo `term_days` se reseteaba en cada keystroke en el formulario de financiamiento
+
+### Cierre de versión
+- [x] `git tag -a v1.1.1` + `git push origin master --tags`
+
+---
+
+## v1.2.0 — Mora por atraso y correcciones del Dashboard (en desarrollo)
+
+### Lógica de negocio
+- [x] `FinancingService`: cálculo de mora escalonada por tramos de 15 días para financiamientos vencidos
+- [x] `TransactionService`: aplicar mora proporcional al registrar cobros
+- [x] Formulario de cobro muestra monto sugerido con mora incluida
+
+### Dashboard Financiero
+- [x] Fix: distribuciones negativas cuando `net_profit <= 0` (reserva/inkind/capital se fijan en 0)
+- [x] Fix: `capital_available` limitado a `min(capital - en_calle, saldo_banco)` — nunca sobreestima liquidez
+- [x] Fix: etiqueta "Total Comisiones" → "Total Distribuido" en tabla de desglose
+- [x] Fix: revertir `capital_in_street` a usar `transfer_amount` (regresión)
+
+### UI
+- [x] Mostrar % de comisión como hint en formulario de financiamiento
+- [x] Links en filas de CxC y CxP a vista detalle del financiamiento
+- [x] Acción de confirmar cobro en vista detalle de transacción
+- [x] Etiquetas legibles para `tax_pct` y `late_fee_pct` en snapshot de parámetros
+- [x] Columnas toggleables en tablas CxC y CxP
+- [x] Label "Porcentaje" en vez de "%" para `late_fee_pct`
+
+### Datos de producción (post-deploy)
+- [ ] Corregir `collected_amount = 0` en 4 financiamientos cobrados (FN3, FN4, FN6, FN9)
+
+### Cierre de versión
+- [ ] Testing manual / QA
+- [ ] Visto bueno del usuario
+- [ ] Merge develop → master, bump version, tag, push

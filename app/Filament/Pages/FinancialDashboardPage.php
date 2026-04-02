@@ -124,7 +124,26 @@ class FinancialDashboardPage extends Page
             ->where('active', true)
             ->sum('contribution');
         $this->snapshot['capital_total'] = $totalCapital;
-        $this->snapshot['capital_available'] = $totalCapital - $capitalInStreet;
+
+        // Saldo estimado banco (necesario antes de capital_available)
+        $this->snapshot['fund_balance'] = (float) FundAccount::instance()->balance;
+
+        $collections = (float) Transaction::where('type', 'collection')
+            ->where('status', 'confirmed')->sum('amount');
+        $disbursements = (float) Transaction::where('type', 'disbursement')
+            ->where('status', 'confirmed')->sum('amount');
+        $expenses = (float) Transaction::where('type', 'expense')
+            ->where('status', 'confirmed')->sum('amount');
+        $memberDisbursements = (float) Transaction::where('type', 'member_disbursement')
+            ->where('status', 'confirmed')->sum('amount');
+
+        $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements;
+
+        // Capital disponible: el menor entre capital no comprometido y liquidez real
+        $this->snapshot['capital_available'] = max(0, min(
+            $totalCapital - $capitalInStreet,
+            $this->snapshot['estimated_bank']
+        ));
 
         // % de Cobro global: cobrados / (cobrados + activos en calle)
         $globalCollected = Financing::where('status', 'collected')->count();
@@ -148,20 +167,6 @@ class FinancialDashboardPage extends Page
         $this->snapshot['roi_accumulated'] = $totalCapital > 0
             ? round(($accumulatedProfit / $totalCapital) * 100, 2)
             : 0;
-
-        // Balance del fondo
-        $this->snapshot['fund_balance'] = (float) FundAccount::instance()->balance;
-
-        $collections = (float) Transaction::where('type', 'collection')
-            ->where('status', 'confirmed')->sum('amount');
-        $disbursements = (float) Transaction::where('type', 'disbursement')
-            ->where('status', 'confirmed')->sum('amount');
-        $expenses = (float) Transaction::where('type', 'expense')
-            ->where('status', 'confirmed')->sum('amount');
-        $memberDisbursements = (float) Transaction::where('type', 'member_disbursement')
-            ->where('status', 'confirmed')->sum('amount');
-
-        $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements;
 
         // CxC: Cuentas por Cobrar
         $cxcBase = Financing::whereIn('status', ['disbursed', 'partially_collected']);
