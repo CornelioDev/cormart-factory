@@ -50,44 +50,53 @@ class CuentasPorPagarPage extends Page implements HasTable
                     ->searchable()
                     ->sortable()
                     ->copyable()
-                    ->fontFamily('mono'),
+                    ->fontFamily('mono')
+                    ->toggleable(),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('client.name')
                     ->label('Deudor')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('amount')
                     ->label('Monto Solicitado')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('commission')
                     ->label('Comisión')
-                    ->money('DOP', locale: 'es_DO'),
+                    ->money('DOP', locale: 'es_DO')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('transfer_amount')
                     ->label('Neto a Desembolsar')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('term_days')
                     ->label('Plazo')
-                    ->suffix(' días'),
+                    ->suffix(' días')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('request_date')
                     ->label('Fecha Solicitud')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('due_date')
                     ->label('Vence el')
-                    ->date('d M Y'),
+                    ->date('d M Y')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('days_waiting')
                     ->label('Días en espera')
@@ -96,7 +105,8 @@ class CuentasPorPagarPage extends Page implements HasTable
                     )
                     ->color(fn (Financing $record): string =>
                         $record->request_date->diffInDays(now()) > 3 ? 'warning' : 'gray'
-                    ),
+                    )
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('company_id')
@@ -127,6 +137,7 @@ class CuentasPorPagarPage extends Page implements HasTable
                         ]));
                     }),
             ])
+            ->recordUrl(fn (Financing $record): string => route('filament.admin.resources.financings.view', $record))
             ->emptyStateHeading('Sin solicitudes pendientes')
             ->emptyStateDescription('Todos los financiamientos solicitados han sido procesados.')
             ->emptyStateIcon('heroicon-o-check-circle');

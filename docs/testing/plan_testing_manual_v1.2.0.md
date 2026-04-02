@@ -188,21 +188,21 @@ php artisan test
 
 * [x] Registrar cobro por RD$ 110,000 (capital + mora)
 
-  * *Notas: Actualmente el campo no muestra el monto pendiente + la mora, sino solamente el monto pendiente, y al hacer el pago, sale como un Abono*
+  * *Notas: Corregido*
 
-  * [ ] Financiamiento pasa a `collected`
-
-    * *Notas: —*
-
-  * [ ] `collected_amount` = RD$ 100,000.00
+  * [x] Financiamiento pasa a `collected`
 
     * *Notas: —*
 
-  * [ ] `late_fee_amount` = RD$ 10,000.00
+  * [x] `collected_amount` = RD$ 100,000.00
 
     * *Notas: —*
 
-  * [ ] `late_fee_pending` = RD$ 0.00
+  * [x] `late_fee_amount` = RD$ 10,000.00
+
+    * *Notas: —*
+
+  * [x] `late_fee_pending` = RD$ 0.00
 
     * *Notas: —*
 

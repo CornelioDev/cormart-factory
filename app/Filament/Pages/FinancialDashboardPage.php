@@ -116,7 +116,7 @@ class FinancialDashboardPage extends Page
 
         // KPIs operativos
         $capitalInStreet = (float) Financing::whereIn('status', ['disbursed', 'partially_collected'])
-            ->selectRaw('SUM(transfer_amount - collected_amount) as pending')
+            ->selectRaw('SUM(amount - collected_amount) as pending')
             ->value('pending');
         $this->snapshot['capital_in_street'] = $capitalInStreet;
 

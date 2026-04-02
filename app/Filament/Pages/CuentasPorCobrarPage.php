@@ -69,38 +69,44 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->sortable()
                     ->copyable()
                     ->fontFamily('mono')
-                    ->url(fn (Financing $record): string => route('filament.admin.resources.financings.view', $record)),
+                    ->toggleable(),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
                     ->hidden(fn (): bool => auth()->user()->hasRole('company_user'))
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('client.name')
                     ->label('Deudor')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('amount')
                     ->label('Monto Financiado')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('transfer_amount')
                     ->label('Monto Desembolsado')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('commission')
                     ->label('Comisión')
                     ->money('DOP', locale: 'es_DO')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('disbursed_at')
                     ->label('Fecha Desembolso')
                     ->date('d M Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('due_date')
                     ->label('Vencimiento')
@@ -108,7 +114,8 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->color(fn (Financing $record): string =>
                         $record->due_date->isPast() ? 'danger' : 'success'
                     )
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('days_outstanding')
                     ->label('Días en Calle')
@@ -117,7 +124,8 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     )
                     ->color(fn (Financing $record): string =>
                         $record->due_date->isPast() ? 'danger' : 'gray'
-                    ),
+                    )
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('late_fee_estimated')
                     ->label('Mora Estimada')
@@ -126,7 +134,8 @@ class CuentasPorCobrarPage extends Page implements HasTable
                         return 'RD$ ' . number_format($fee, 2, '.', ',');
                     })
                     ->color('danger')
-                    ->visible(fn (): bool => ! auth()->user()->hasRole('company_user')),
+                    ->visible(fn (): bool => ! auth()->user()->hasRole('company_user'))
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('company_id')
@@ -159,6 +168,7 @@ class CuentasPorCobrarPage extends Page implements HasTable
                         ]));
                     }),
             ])
+            ->recordUrl(fn (Financing $record): string => route('filament.admin.resources.financings.view', $record))
             ->emptyStateHeading('Sin cuentas por cobrar')
             ->emptyStateDescription('No hay financiamientos desembolsados pendientes de cobro.')
             ->emptyStateIcon('heroicon-o-check-circle');

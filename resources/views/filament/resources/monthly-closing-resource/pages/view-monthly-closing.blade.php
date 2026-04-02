@@ -152,6 +152,8 @@
                             @case('reserve_pct') Reserva del fondo @break
                             @case('in_kind_pct') % Aportante en naturaleza @break
                             @case('default_term_days') Plazo estándar @break
+                            @case('tax_pct') Impuesto sobre desembolso @break
+                            @case('late_fee_pct') Mora por atraso @break
                             @default {{ $param->key }}
                         @endswitch
                     </span>
