@@ -1,6 +1,6 @@
-# Roadmap Cormart Factory → v1.0.0
+# Roadmap Cormart Factory
 
-> Actualizado: 2026-03-30 | Estado actual: **v1.0.0** ✅ Lanzado
+> Actualizado: 2026-04-02 | Estado actual: **v1.2.0** en desarrollo
 
 ---
 
@@ -155,6 +155,46 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 
 ---
 
+---
+
+## v1.1.0 — Comisión escalonada por plazo
+
+**Objetivo:** Escalar comisión según duración del financiamiento.
+
+- `FinancingService`: comisión por tramos de 30 días (5% ≤30d, 10% ≤60d, 15% ≤90d)
+
+---
+
+## v1.1.1 — Fix campo term_days
+
+- Fix: campo `term_days` se reseteaba en cada keystroke por debounce incorrecto
+
+---
+
+## v1.2.0 — Mora por atraso y correcciones del Dashboard
+
+**Objetivo:** Implementar mora automática para financiamientos vencidos y corregir errores de cálculo detectados en el dashboard de producción.
+
+### Mora
+- Cálculo escalonado por tramos de 15 días sobre saldo pendiente
+- Aplicación proporcional al registrar cobros (parciales o totales)
+- Formulario de cobro sugiere monto con mora incluida
+
+### Dashboard — Correcciones de cálculo
+- `DistributionService`: distribuciones (reserva, in-kind, variable) = 0 cuando net_profit ≤ 0
+- `FinancialDashboardPage`: `capital_available = min(capital - en_calle, saldo_banco)`
+- Blade: etiqueta "Total Comisiones" → "Total Distribuido"
+- Revertir `capital_in_street` a `transfer_amount`
+
+### UI
+- Links en CxC/CxP a vista detalle, acción confirmar cobro, columnas toggleables
+- Etiquetas legibles para parámetros en snapshot de cierre
+
+### Datos de producción (post-deploy)
+- Corregir `collected_amount = 0` en FN3, FN4, FN6, FN9 (entrada inicial de datos)
+
+---
+
 ## Resumen
 
 | Versión | Foco | Estado |
@@ -165,4 +205,7 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 | **v0.8.0** | Dashboard financiero | ✅ Completado |
 | **v0.8.2** | Distribución por desembolsos + mejoras dashboard | ✅ Completado |
 | **v0.9.0** | Tests, bug fixes, preparación producción | ✅ Completado |
-| **v1.0.0** | QA y lanzamiento | Pendiente |
+| **v1.0.0** | QA y lanzamiento | ✅ Completado |
+| **v1.1.0** | Comisión escalonada por plazo | ✅ Completado |
+| **v1.1.1** | Fix campo term_days | ✅ Completado |
+| **v1.2.0** | Mora por atraso + correcciones dashboard | En desarrollo |
