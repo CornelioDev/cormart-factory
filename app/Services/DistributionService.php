@@ -50,13 +50,16 @@ class DistributionService
         });
 
         $netProfit        = round($baseEarnings - $totalFixed, 2);
-        $reserve          = round($netProfit * ($reservePct / 100), 2);
-        $postReserve      = round($netProfit - $reserve, 2);
-        $inKindPayment    = round($postReserve * ($inKindPct / 100), 2);
-        $availableCapital = round($postReserve - $inKindPayment, 2);
+        $reserve          = $netProfit > 0 ? round($netProfit * ($reservePct / 100), 2) : 0;
+        $postReserve      = $netProfit > 0 ? round($netProfit - $reserve, 2) : 0;
+        $inKindPayment    = $netProfit > 0 ? round($postReserve * ($inKindPct / 100), 2) : 0;
+        $availableCapital = $netProfit > 0 ? round($postReserve - $inKindPayment, 2) : 0;
 
+        // Cuando net_profit > 0: comisiones = gastos + fijo + reserva + inkind + capital → diff = 0
+        // Cuando net_profit <= 0: la pérdida la absorbe el fondo, no se distribuye → incluir en verificación
+        $fundAbsorbedLoss = $netProfit < 0 ? $netProfit : 0;
         $verificationDiff = round(
-            (float) $totalCommissions - ($totalExpenses + $totalFixed + $reserve + $inKindPayment + $availableCapital),
+            (float) $totalCommissions - ($totalExpenses + $totalFixed + $reserve + $inKindPayment + $availableCapital + $fundAbsorbedLoss),
             2
         );
 
