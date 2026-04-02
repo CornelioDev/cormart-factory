@@ -229,6 +229,6 @@
 - [ ] Corregir `collected_amount = 0` en 4 financiamientos cobrados (FN3, FN4, FN6, FN9)
 
 ### Cierre de versión
-- [ ] Testing manual / QA
-- [ ] Visto bueno del usuario
-- [ ] Merge develop → master, bump version, tag, push
+- [x] Testing manual / QA
+- [x] Visto bueno del usuario
+- [x] Merge develop → master, bump version, tag, push
