@@ -7,6 +7,7 @@ use App\Models\ClosingDistribution;
 use App\Models\ClosingParametersSnapshot;
 use App\Models\Company;
 use App\Models\Financing;
+use App\Models\CapitalAccount;
 use App\Models\FundAccount;
 use App\Models\FundMember;
 use App\Models\MonthlyClosing;
@@ -37,6 +38,7 @@ class DistributionServiceTest extends ServiceTestCase
         $this->actingAs($this->user);
 
         FundAccount::create(['balance' => 0]);
+        CapitalAccount::create(['balance' => 500000]);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

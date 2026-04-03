@@ -5,6 +5,7 @@ namespace Tests\Feature\Filament;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\Financing;
+use App\Models\CapitalAccount;
 use App\Models\FundAccount;
 use App\Models\User;
 use App\Services\TransactionService;
@@ -28,6 +29,7 @@ class CreateTransactionTest extends ServiceTestCase
         $this->operator->assignRole($this->createRole('super_admin'));
 
         FundAccount::create(['balance' => 0]);
+        CapitalAccount::create(['balance' => 500000]);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

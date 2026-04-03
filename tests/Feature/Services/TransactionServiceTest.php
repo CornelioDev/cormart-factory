@@ -5,6 +5,7 @@ namespace Tests\Feature\Services;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\Financing;
+use App\Models\CapitalAccount;
 use App\Models\FundAccount;
 use App\Models\FundMember;
 use App\Models\Transaction;
@@ -31,6 +32,7 @@ class TransactionServiceTest extends ServiceTestCase
         $this->client  = Client::factory()->for($this->company)->create();
 
         FundAccount::create(['balance' => 0]);
+        CapitalAccount::create(['balance' => 500000]);
 
         $operatorRole   = $this->createRole('operator');
         $superAdminRole = $this->createRole('super_admin');

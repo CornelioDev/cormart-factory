@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\CapitalAccount;
 use App\Models\Financing;
 use App\Models\FundAccount;
 use App\Models\FundMember;
@@ -139,11 +140,8 @@ class FinancialDashboardPage extends Page
 
         $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements;
 
-        // Capital disponible: el menor entre capital no comprometido y liquidez real
-        $this->snapshot['capital_available'] = max(0, min(
-            $totalCapital - $capitalInStreet,
-            $this->snapshot['estimated_bank']
-        ));
+        // Capital disponible: directamente del ledger
+        $this->snapshot['capital_available'] = max(0, (float) CapitalAccount::instance()->balance);
 
         // % de Cobro global: cobrados / (cobrados + activos en calle)
         $globalCollected = Financing::where('status', 'collected')->count();
