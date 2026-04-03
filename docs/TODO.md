@@ -204,7 +204,7 @@
 
 ---
 
-## v1.2.0 — Mora por atraso y correcciones del Dashboard (en desarrollo)
+## v1.2.0 — Mora por atraso y correcciones del Dashboard ✅
 
 ### Lógica de negocio
 - [x] `FinancingService`: cálculo de mora escalonada por tramos de 15 días para financiamientos vencidos
@@ -226,9 +226,36 @@
 - [x] Label "Porcentaje" en vez de "%" para `late_fee_pct`
 
 ### Datos de producción (post-deploy)
-- [ ] Corregir `collected_amount = 0` en 4 financiamientos cobrados (FN3, FN4, FN6, FN9)
+- [x] Corregir `collected_amount = 0` en 4 financiamientos cobrados (FN3, FN4, FN6, FN9)
 
 ### Cierre de versión
 - [x] Testing manual / QA
 - [x] Visto bueno del usuario
 - [x] Merge develop → master, bump version, tag, push
+
+---
+
+## v1.3.0 — Contabilidad por pool (capital_account) (en desarrollo)
+
+### Base de datos
+- [x] Migración: crear tabla `capital_account` con balance inicial calculado
+
+### Modelos
+- [x] `CapitalAccount`: modelo con `instance()`, `credit()`, `debit()`
+
+### Services
+- [x] `CapitalAccountService`: wrapper del modelo
+- [x] `TransactionService`: debit capital al desembolsar (`amount`), credit al cobrar (`toCapital`)
+- [x] `TransactionService`: credit mora (`toLateFee`) al fondo al cobrar
+
+### Dashboard
+- [x] `FinancialDashboardPage`: `capital_available` lee directamente de `capital_account.balance`
+
+### Datos de producción (post-deploy)
+- [ ] Verificar triple balance: `capital + fondo + ganancias_pendientes = banco_estimado`
+- [ ] Ajustar `fund_account.balance` si la verificación no cuadra
+
+### Cierre de versión
+- [ ] Testing manual / QA
+- [ ] Visto bueno del usuario
+- [ ] Merge develop → master, bump version, tag, push

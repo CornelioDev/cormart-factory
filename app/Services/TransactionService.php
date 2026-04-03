@@ -65,6 +65,12 @@ class TransactionService
                     (new FundAccountService())->credit($totalCommission);
                 }
 
+                // Debitar capital comprometido (monto total del financiamiento)
+                $totalAmount = (float) $financings->sum('amount');
+                if ($totalAmount > 0) {
+                    (new CapitalAccountService())->debit($totalAmount);
+                }
+
                 // Auto-generar gasto de impuesto sobre el monto desembolsado
                 $this->createTaxExpense($transaction, $data);
             } elseif ($data['type'] === 'collection') {
@@ -168,7 +174,10 @@ class TransactionService
         $transactionAmount = (float) $transaction->amount;
         $financingService = new FinancingService();
 
-        $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings, $financingService) {
+        $totalCapitalRecovered = 0;
+        $totalLateFeeCollected = 0;
+
+        $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings, $financingService, &$totalCapitalRecovered, &$totalLateFeeCollected) {
             $totalRemaining = $financings->sum(fn ($fin) => $fin->remainingBalance());
             $paymentForThis = $financings->count() === 1
                 ? $transactionAmount
@@ -187,6 +196,9 @@ class TransactionService
                 $toLateFee  = 0.00;
             }
 
+            $totalCapitalRecovered += $toCapital;
+            $totalLateFeeCollected += $toLateFee;
+
             $newCollected = round((float) $f->collected_amount + $toCapital, 2);
             $isFullyPaid  = $newCollected >= (float) $f->amount;
 
@@ -199,6 +211,14 @@ class TransactionService
                 'collection_period' => $isFullyPaid ? $date->format('Y-m') : null,
             ]);
         });
+
+        // Acreditar capital recuperado y mora al fondo
+        if ($totalCapitalRecovered > 0) {
+            (new CapitalAccountService())->credit($totalCapitalRecovered);
+        }
+        if ($totalLateFeeCollected > 0) {
+            (new FundAccountService())->credit($totalLateFeeCollected);
+        }
     }
 
     /**

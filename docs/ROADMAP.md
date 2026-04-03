@@ -1,6 +1,6 @@
 # Roadmap Cormart Factory
 
-> Actualizado: 2026-04-02 | Estado actual: **v1.2.0** en desarrollo
+> Actualizado: 2026-04-02 | Estado actual: **v1.3.0** en desarrollo
 
 ---
 
@@ -195,6 +195,21 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 
 ---
 
+## v1.3.0 — Contabilidad por pool (capital_account)
+
+**Objetivo:** Rastrear explícitamente el capital disponible para financiamientos con un ledger dedicado, separando los tres pools de dinero en el banco: Capital (para financiar), Fondo (reserva + gastos), Ganancias pendientes (de miembros).
+
+### Implementación
+- Tabla `capital_account` con balance calculado: `contribución - capital_en_calle`
+- `TransactionService`: debit al desembolsar (amount), credit al cobrar (toCapital), mora al fondo
+- Dashboard lee `capital_account.balance` directamente
+- Verificación contable permanente: `capital + fondo + ganancias_pendientes = banco_estimado`
+
+### Post-deploy
+- Verificar triple balance y ajustar `fund_account` si hay diff histórico
+
+---
+
 ## Resumen
 
 | Versión | Foco | Estado |
@@ -208,4 +223,5 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 | **v1.0.0** | QA y lanzamiento | ✅ Completado |
 | **v1.1.0** | Comisión escalonada por plazo | ✅ Completado |
 | **v1.1.1** | Fix campo term_days | ✅ Completado |
-| **v1.2.0** | Mora por atraso + correcciones dashboard | En desarrollo |
+| **v1.2.0** | Mora por atraso + correcciones dashboard | ✅ Completado |
+| **v1.3.0** | Contabilidad por pool (capital_account) | En desarrollo |
