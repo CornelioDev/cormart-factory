@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\FinancingResource\Pages;
 
 use App\Filament\Resources\FinancingResource;
+use App\Services\NotificationService;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -19,6 +20,10 @@ class CreateFinancing extends CreateRecord
             $data['company_id'] ??= $user->company_id;
         }
 
-        return parent::handleRecordCreation($data);
+        $financing = parent::handleRecordCreation($data);
+
+        rescue(fn () => (new NotificationService())->financingRequested($financing));
+
+        return $financing;
     }
 }
