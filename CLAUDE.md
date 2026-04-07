@@ -139,6 +139,8 @@ Configurables desde el módulo Parámetros (super_admin). Cada cambio queda en h
 | `reserve_pct` | 20.0 | % de reserva sobre la ganancia neta |
 | `in_kind_pct` | 50.0 | % del post-reserva para el aportante en especie |
 | `default_term_days` | 15 | Plazo predeterminado en días |
+| `due_alert_days` | 5 | Días de anticipación para alerta de vencimiento |
+| `alert_send_time` | 07:00 | Hora de envío de alertas diarias (HH:MM) |
 
 ---
 
@@ -186,6 +188,40 @@ Un período solo puede cerrarse una vez.
 | `CuentasPorCobrarPage` | super_admin, operator, company_user | Vista de cuentas por cobrar |
 | `CuentasPorPagarPage` | super_admin, operator | Vista de cuentas por pagar |
 | `ParametrosPage` | super_admin | Gestión de parámetros del sistema |
+| `MailSettingsPage` | super_admin | Configuración SMTP y pruebas de correo |
+| `ReconciliationPage` | super_admin | Reconciliación contable de ledgers |
+
+---
+
+## Notificaciones por Email
+
+Sistema de notificaciones basado en Laravel Notifications (`Notifiable` trait).
+
+### Eventos y destinatarios
+
+| Evento | Destinatarios |
+|--------|---------------|
+| Solicitud de financiamiento creada | Admin + Operator |
+| Cobro pendiente de confirmación | Admin + Operator |
+| Financiamientos próximos a vencer | Admin + Operator + Company User (su compañía) |
+| Financiamientos vencidos | Admin + Operator + Company User (su compañía) |
+| Desembolso de ganancia de miembro | Admin |
+| Desembolso de financiamiento | Company User (su compañía) |
+
+### Arquitectura
+
+- **`NotificationService`**: Centraliza resolución de destinatarios y despacho con `rescue()`.
+- **`MailSetting`**: Modelo singleton para configuración SMTP desde UI (password encriptado).
+- **`MailConfigServiceProvider`**: Sobreescribe config SMTP de Laravel en runtime desde BD.
+- **`SendFinancingAlerts`**: Comando artisan (`app:send-financing-alerts`) ejecutado diariamente vía scheduler.
+- Todas las notificaciones van al `email` del modelo `User`.
+
+### Comando programado (cron)
+
+Para producción, configurar en cPanel:
+```
+* * * * * cd /home/cornljge/public_html && php artisan schedule:run >> /dev/null 2>&1
+```
 
 ---
 

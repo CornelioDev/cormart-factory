@@ -40,6 +40,21 @@ class ParameterSeeder extends Seeder
                 'value'       => 0.15,
                 'description' => 'Impuesto sobre desembolsos (%)',
             ],
+            [
+                'key'         => 'late_fee_pct',
+                'value'       => 5.0000,
+                'description' => 'Mora por atraso sobre saldo pendiente por cada 30 días (%)',
+            ],
+            [
+                'key'         => 'due_alert_days',
+                'value'       => 5,
+                'description' => 'Días de anticipación para alerta de vencimiento',
+            ],
+            [
+                'key'         => 'alert_send_time',
+                'value'       => '07:00',
+                'description' => 'Hora de envío de alertas diarias (HH:MM)',
+            ],
         ];
 
         foreach ($parameters as $parameter) {

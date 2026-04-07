@@ -8,6 +8,7 @@ use App\Models\Parameter;
 use App\Models\Supplier;
 use App\Models\Transaction;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class TransactionService
@@ -81,6 +82,9 @@ class TransactionService
                     $financings->each(fn (Financing $f) => $f->update(['status' => 'pending_payment']));
                 }
             }
+
+            // Notificaciones por email
+            $this->sendTransactionNotifications($transaction, $financings);
 
             return $transaction;
         });
@@ -245,8 +249,9 @@ class TransactionService
      */
     public function createMemberDisbursement(array $data): Transaction
     {
-        return DB::transaction(function () use ($data) {
-            $member = FundMember::findOrFail($data['fund_member_id']);
+        $member = FundMember::findOrFail($data['fund_member_id']);
+
+        $transaction = DB::transaction(function () use ($data, $member) {
             $amount = (float) $data['amount'];
 
             if ($amount <= 0) {
@@ -283,6 +288,10 @@ class TransactionService
 
             return $transaction;
         });
+
+        rescue(fn () => (new NotificationService())->memberDisbursementCreated($transaction, $member));
+
+        return $transaction;
     }
 
     /**
@@ -329,5 +338,19 @@ class TransactionService
         $service = new FinancingService();
 
         return (float) $financings->sum(fn (Financing $f) => $f->remainingBalance() + $service->calculateLateFee($f, $asOfDate));
+    }
+
+    /**
+     * Envía notificaciones por email según el tipo de transacción.
+     */
+    private function sendTransactionNotifications(Transaction $transaction, Collection $financings): void
+    {
+        $notificationService = new NotificationService();
+
+        if ($transaction->type === 'disbursement') {
+            rescue(fn () => $notificationService->financingDisbursed($transaction, $financings));
+        } elseif ($transaction->type === 'collection' && $transaction->status === 'pending') {
+            rescue(fn () => $notificationService->pendingCollectionCreated($transaction));
+        }
     }
 }

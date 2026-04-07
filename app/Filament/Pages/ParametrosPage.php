@@ -43,6 +43,8 @@ class ParametrosPage extends Page implements HasForms
             'default_term_days' => (int)   ($params['default_term_days'] ?? 15),
             'tax_pct'           => round((float) ($params['tax_pct']           ?? 0.15), 4),
             'late_fee_pct'      => round((float) ($params['late_fee_pct']      ?? 5.0),  2),
+            'due_alert_days'    => (int)   ($params['due_alert_days']    ?? 5),
+            'alert_send_time'   =>          $params['alert_send_time']   ?? '07:00',
         ]);
     }
 
@@ -127,6 +129,26 @@ class ParametrosPage extends Page implements HasForms
                             ->required()
                             ->helperText('Porcentaje sobre saldo pendiente por cada 30 días de atraso.'),
                     ]),
+
+                Section::make('Notificaciones')
+                    ->description('Configuración de alertas automáticas por correo electrónico.')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('due_alert_days')
+                            ->label('Alerta de Vencimiento')
+                            ->suffix('días')
+                            ->numeric()
+                            ->minValue(1)
+                            ->step(1)
+                            ->required()
+                            ->helperText('Días de anticipación para enviar alerta antes del vencimiento.'),
+
+                        TextInput::make('alert_send_time')
+                            ->label('Hora de Envío de Alertas')
+                            ->type('time')
+                            ->required()
+                            ->helperText('Hora del día en que se envían las alertas de vencimiento (formato 24h).'),
+                    ]),
             ])
             ->statePath('data');
     }
@@ -138,8 +160,15 @@ class ParametrosPage extends Page implements HasForms
         $period  = now()->format('Y-m');
         $userId  = auth()->id();
 
+        // Parámetros que almacenan texto (no numéricos)
+        $stringParams = ['alert_send_time'];
+
         foreach ($values as $key => $value) {
-            $service->update($key, (float) $value, $period, $userId);
+            if (in_array($key, $stringParams)) {
+                $service->updateRaw($key, $value, $period, $userId);
+            } else {
+                $service->update($key, (float) $value, $period, $userId);
+            }
         }
 
         Notification::make()
