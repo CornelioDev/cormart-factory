@@ -21,6 +21,14 @@ class ParameterService
 
     public function update(string $key, float $value, string $period, int $changedBy): void
     {
+        $this->updateRaw($key, $value, $period, $changedBy);
+    }
+
+    /**
+     * Actualiza un parámetro con un valor de cualquier tipo (string, float, etc.).
+     */
+    public function updateRaw(string $key, mixed $value, string $period, int $changedBy): void
+    {
         $parameter = Parameter::where('key', $key)->firstOrFail();
 
         ParameterHistory::create([
