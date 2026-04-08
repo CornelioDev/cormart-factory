@@ -27,8 +27,9 @@ abstract class ServiceTestCase extends TestCase
             ['key' => 'default_term_days', 'value' => 15.0,  'description' => 'Plazo estándar en días'],
             ['key' => 'tax_pct',           'value' => 0.15,    'description' => 'Impuesto sobre desembolsos (%)'],
             ['key' => 'late_fee_pct',      'value' => 5.0,    'description' => 'Mora por atraso cada 30 días (%)'],
-            ['key' => 'due_alert_days',    'value' => 5,      'description' => 'Días de anticipación para alerta de vencimiento'],
-            ['key' => 'alert_send_time',   'value' => '07:00','description' => 'Hora de envío de alertas diarias (HH:MM)'],
+            ['key' => 'due_alert_days',    'value' => 5,                        'description' => 'Días de anticipación para alerta de vencimiento'],
+            ['key' => 'alert_send_time',   'value' => '07:00',                  'description' => 'Hora de envío de alertas diarias (HH:MM)'],
+            ['key' => 'timezone',          'value' => 'America/Santo_Domingo',  'description' => 'Zona horaria del sistema'],
         ]);
     }
 

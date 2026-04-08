@@ -55,6 +55,11 @@ class ParameterSeeder extends Seeder
                 'value'       => '07:00',
                 'description' => 'Hora de envío de alertas diarias (HH:MM)',
             ],
+            [
+                'key'         => 'timezone',
+                'value'       => 'America/Santo_Domingo',
+                'description' => 'Zona horaria del sistema',
+            ],
         ];
 
         foreach ($parameters as $parameter) {
