@@ -23,7 +23,7 @@ class SendFinancingAlerts extends Command
         // Financiamientos activos con fecha de vencimiento
         $financings = Financing::whereIn('status', ['disbursed', 'partially_collected'])
             ->whereNotNull('due_date')
-            ->with('company')
+            ->with(['company', 'client'])
             ->get();
 
         if ($financings->isEmpty()) {

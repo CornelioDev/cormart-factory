@@ -28,6 +28,7 @@ class FinancingDisbursed extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $t     = $this->transaction;
+        $this->financings->load('client');
         $codes = $this->financings->pluck('code')->implode(', ');
 
         $message = (new MailMessage)
@@ -41,7 +42,7 @@ class FinancingDisbursed extends Notification
             $transfer = 'RD$ ' . number_format($f->transfer_amount, 2, '.', ',');
             $dueDate  = $f->due_date ? $f->due_date->format('d/m/Y') : '—';
 
-            $message->line("**{$f->code}** — Monto: {$amount} | Transferido: {$transfer} | Vence: {$dueDate}");
+            $message->line("**{$f->code}** — {$f->client->name} | Monto: {$amount} | Transferido: {$transfer} | Vence: {$dueDate}");
         }
 
         $totalTransfer = 'RD$ ' . number_format($t->amount, 2, '.', ',');

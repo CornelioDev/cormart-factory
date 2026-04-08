@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Crypt;
 class MailSetting extends Model
 {
     protected $fillable = [
+        'transport',
         'host',
         'port',
         'username',
@@ -25,6 +26,7 @@ class MailSetting extends Model
     public static function instance(): static
     {
         return static::firstOrCreate([], [
+            'transport'    => 'smtp',
             'host'         => config('mail.mailers.smtp.host'),
             'port'         => config('mail.mailers.smtp.port'),
             'username'     => config('mail.mailers.smtp.username'),

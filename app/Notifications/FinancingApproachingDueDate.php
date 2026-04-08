@@ -37,7 +37,7 @@ class FinancingApproachingDueDate extends Notification
             $dueDate  = $f->due_date->format('d/m/Y');
             $daysLeft = (int) now()->startOfDay()->diffInDays($f->due_date->startOfDay(), false);
 
-            $message->line("**{$f->code}** — {$f->company->name} | Monto: {$amount} | Vence: {$dueDate} ({$daysLeft} día(s))");
+            $message->line("**{$f->code}** — {$f->client->name} | Monto: {$amount} | Vence: {$dueDate} ({$daysLeft} día(s))");
         }
 
         // Link al primer financiamiento como referencia

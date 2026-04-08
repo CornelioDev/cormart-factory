@@ -56,6 +56,7 @@ class MailSettingsPage extends Page implements HasForms
         $settings = MailSetting::first();
 
         $this->form->fill([
+            'transport'    => $settings?->transport ?? 'smtp',
             'host'         => $settings?->host ?? '',
             'port'         => $settings?->port ?? 465,
             'username'     => $settings?->username ?? '',
@@ -73,21 +74,35 @@ class MailSettingsPage extends Page implements HasForms
     protected function getFormSchema(): array
     {
         return [
+            Section::make('Transporte')
+                ->description('Método de envío de correos electrónicos.')
+                ->schema([
+                    Select::make('transport')
+                        ->label('Método de Envío')
+                        ->options([
+                            'smtp'     => 'SMTP — Conexión a servidor de correo externo',
+                            'sendmail' => 'Sendmail — Servidor de correo local del hosting',
+                        ])
+                        ->required()
+                        ->live(),
+                ]),
+
             Section::make('Servidor SMTP')
                 ->description('Configuración del servidor de correo saliente.')
                 ->columns(2)
+                ->visible(fn ($get) => $get('transport') === 'smtp')
                 ->schema([
                     TextInput::make('host')
                         ->label('Servidor (Host)')
                         ->placeholder('mail.ejemplo.com')
-                        ->required(),
+                        ->requiredIf('transport', 'smtp'),
 
                     TextInput::make('port')
                         ->label('Puerto')
                         ->numeric()
                         ->minValue(1)
                         ->maxValue(65535)
-                        ->required(),
+                        ->requiredIf('transport', 'smtp'),
 
                     TextInput::make('username')
                         ->label('Usuario')
@@ -106,7 +121,7 @@ class MailSettingsPage extends Page implements HasForms
                             'smtp'  => 'STARTTLS (puerto 587)',
                             'none'  => 'Ninguna (puerto 25)',
                         ])
-                        ->required(),
+                        ->requiredIf('transport', 'smtp'),
                 ]),
 
             Section::make('Remitente')
@@ -162,10 +177,11 @@ class MailSettingsPage extends Page implements HasForms
         $settings = MailSetting::instance();
 
         $updateData = [
-            'host'         => $values['host'],
-            'port'         => $values['port'],
-            'username'     => $values['username'],
-            'encryption'   => $values['encryption'],
+            'transport'    => $values['transport'],
+            'host'         => $values['host'] ?? null,
+            'port'         => $values['port'] ?? 465,
+            'username'     => $values['username'] ?? null,
+            'encryption'   => $values['encryption'] ?? 'smtps',
             'from_address' => $values['from_address'],
             'from_name'    => $values['from_name'],
         ];
@@ -189,10 +205,10 @@ class MailSettingsPage extends Page implements HasForms
         $testValues = $this->testForm->getState();
         $settings   = MailSetting::instance();
 
-        if (! $settings->host) {
+        if (! $settings->from_address) {
             Notification::make()
                 ->title('Configuración incompleta')
-                ->body('Guarda la configuración SMTP antes de enviar un correo de prueba.')
+                ->body('Guarda la configuración antes de enviar un correo de prueba.')
                 ->warning()
                 ->send();
 
@@ -201,17 +217,36 @@ class MailSettingsPage extends Page implements HasForms
 
         // Aplicar la configuración actual en runtime
         config([
-            'mail.default'               => 'smtp',
-            'mail.mailers.smtp.host'     => $settings->host,
-            'mail.mailers.smtp.port'     => $settings->port,
-            'mail.mailers.smtp.username' => $settings->username,
-            'mail.mailers.smtp.password' => $settings->decrypted_password,
-            'mail.mailers.smtp.scheme'   => $settings->encryption === 'none' ? null : $settings->encryption,
-            'mail.from.address'          => $settings->from_address,
-            'mail.from.name'             => $settings->from_name,
+            'mail.from.address' => $settings->from_address,
+            'mail.from.name'    => $settings->from_name,
         ]);
 
-        Mail::purge('smtp');
+        if ($settings->transport === 'sendmail') {
+            config([
+                'mail.default'               => 'sendmail',
+                'mail.mailers.sendmail.path'  => '/usr/sbin/sendmail -bs',
+            ]);
+            Mail::purge('sendmail');
+        } else {
+            $scheme  = match ($settings->encryption) {
+                'smtps' => 'smtps',
+                'smtp'  => 'smtp',
+                default => 'smtp',
+            };
+            $isLocal = in_array($settings->host, ['localhost', '127.0.0.1']);
+            $user    = $settings->username ? urlencode($settings->username) : '';
+            $pass    = $settings->decrypted_password ? urlencode($settings->decrypted_password) : '';
+            $auth    = $user ? "{$user}:{$pass}@" : '';
+            $query   = $isLocal ? '?verify_peer=0' : '';
+            $url     = "{$scheme}://{$auth}{$settings->host}:{$settings->port}{$query}";
+
+            config([
+                'mail.default'           => 'smtp',
+                'mail.mailers.smtp.url'  => $url,
+                'mail.mailers.smtp.host' => null,
+            ]);
+            Mail::purge('smtp');
+        }
 
         $email = $testValues['test_email'];
         $type  = $testValues['test_type'];
@@ -291,7 +326,7 @@ class MailSettingsPage extends Page implements HasForms
 
     private function buildFinancingDisbursedTest(): FinancingDisbursed
     {
-        $transaction = Transaction::where('type', 'disbursement')->with('financings')->latest()->first();
+        $transaction = Transaction::where('type', 'disbursement')->with('financings.client')->latest()->first();
 
         if (! $transaction) {
             throw new \Exception('No hay desembolsos en el sistema para usar como ejemplo.');
@@ -304,7 +339,7 @@ class MailSettingsPage extends Page implements HasForms
     {
         $financings = Financing::whereIn('status', ['disbursed', 'partially_collected'])
             ->whereNotNull('due_date')
-            ->with('company')
+            ->with(['company', 'client'])
             ->latest()
             ->take(3)
             ->get();
@@ -320,7 +355,7 @@ class MailSettingsPage extends Page implements HasForms
     {
         $financings = Financing::whereIn('status', ['disbursed', 'partially_collected'])
             ->whereNotNull('due_date')
-            ->with('company')
+            ->with(['company', 'client'])
             ->latest()
             ->take(3)
             ->get();

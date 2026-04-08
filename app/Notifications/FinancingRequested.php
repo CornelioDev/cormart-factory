@@ -31,7 +31,7 @@ class FinancingRequested extends Notification
             ->line("Se ha registrado una nueva solicitud de financiamiento.")
             ->line("**Código:** {$f->code}")
             ->line("**Compañía:** {$f->company->name}")
-            ->line("**Cliente:** {$f->client->name}")
+            ->line("**Deudor:** {$f->client->name}")
             ->line("**Monto:** RD$ " . number_format($f->amount, 2, '.', ','))
             ->line("**Plazo:** {$f->term_days} días")
             ->line("**Fecha de solicitud:** {$f->request_date->format('d/m/Y')}")

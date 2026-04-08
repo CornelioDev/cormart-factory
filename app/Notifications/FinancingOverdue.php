@@ -38,7 +38,7 @@ class FinancingOverdue extends Notification
             $dueDate     = $f->due_date->format('d/m/Y');
             $daysOverdue = (int) $f->due_date->startOfDay()->diffInDays(now()->startOfDay());
 
-            $message->line("**{$f->code}** — {$f->company->name} | Monto: {$amount} | Pendiente: {$remaining} | Venció: {$dueDate} ({$daysOverdue} día(s) de atraso)");
+            $message->line("**{$f->code}** — {$f->client->name} | Monto: {$amount} | Pendiente: {$remaining} | Venció: {$dueDate} ({$daysOverdue} día(s) de atraso)");
         }
 
         $message
