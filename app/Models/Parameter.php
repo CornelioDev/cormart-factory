@@ -13,10 +13,6 @@ class Parameter extends Model
         'description',
     ];
 
-    protected $casts = [
-        'value' => 'decimal:4',
-    ];
-
     public function history(): HasMany
     {
         return $this->hasMany(ParameterHistory::class);

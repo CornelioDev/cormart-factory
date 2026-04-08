@@ -16,7 +16,7 @@ class ParameterService
 
     public function getAll(): array
     {
-        return Parameter::all()->pluck('value', 'key')->map(fn($v) => (float) $v)->toArray();
+        return Parameter::all()->pluck('value', 'key')->toArray();
     }
 
     public function update(string $key, float $value, string $period, int $changedBy): void
