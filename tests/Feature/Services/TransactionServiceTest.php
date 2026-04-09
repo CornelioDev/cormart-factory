@@ -576,32 +576,32 @@ class TransactionServiceTest extends ServiceTestCase
     public function test_full_collection_with_late_fee_distributes_proportionally(): void
     {
         $this->actingAs($this->operator);
-        // Due Jan 1, collect Feb 15 → 45 days → 2 tiers → 10% mora
+        // Due Jan 1, collect Feb 15 → 45 days → floor(45/30) = 1 tier → 5% mora
         $financing = $this->createOverdueFinancing(100000.00, '2026-01-01');
 
-        // Mora = 100,000 × 5% × 2 = 10,000. Total owed = 110,000
-        // Pay the full 110,000
+        // Mora = 100,000 × 5% × 1 = 5,000. Total owed = 105,000
+        // Pay the full 105,000
         $data = $this->collectionData();
-        $data['amount'] = 110000.00;
+        $data['amount'] = 105000.00;
         $data['transaction_date'] = '2026-02-15';
         $this->service->create($data, [$financing->id]);
 
         $f = $financing->fresh();
         $this->assertEquals('collected', $f->status);
         $this->assertEquals(100000.00, (float) $f->collected_amount);
-        $this->assertEquals(10000.00, (float) $f->late_fee_amount);
+        $this->assertEquals(5000.00, (float) $f->late_fee_amount);
         $this->assertEquals(0.00, (float) $f->late_fee_pending);
     }
 
     public function test_partial_collection_with_late_fee_distributes_proportionally(): void
     {
         $this->actingAs($this->operator);
-        // Due Jan 1, collect Feb 15 → 45 days → 2 tiers → 10% mora
+        // Due Jan 1, collect Feb 15 → 45 days → floor(45/30) = 1 tier → 5% mora
         $financing = $this->createOverdueFinancing(100000.00, '2026-01-01');
 
-        // Mora = 10,000. Total owed = 110,000. Pay 50,000
-        // Capital: 50,000 × (100,000 / 110,000) = 45,454.55
-        // Late fee: 50,000 × (10,000 / 110,000) = 4,545.45
+        // Mora = 5,000. Total owed = 105,000. Pay 50,000
+        // Capital: 50,000 × (100,000 / 105,000) = 47,619.05
+        // Late fee: 50,000 × (5,000 / 105,000) = 2,380.95
         $data = $this->collectionData();
         $data['amount'] = 50000.00;
         $data['transaction_date'] = '2026-02-15';
@@ -609,7 +609,7 @@ class TransactionServiceTest extends ServiceTestCase
 
         $f = $financing->fresh();
         $this->assertEquals('partially_collected', $f->status);
-        $this->assertEquals(45454.55, (float) $f->collected_amount);
-        $this->assertEquals(4545.45, (float) $f->late_fee_amount);
+        $this->assertEquals(47619.05, (float) $f->collected_amount);
+        $this->assertEquals(2380.95, (float) $f->late_fee_amount);
     }
 }
