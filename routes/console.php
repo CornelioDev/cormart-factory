@@ -10,5 +10,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('app:send-financing-alerts')->dailyAt(
-    Parameter::where('key', 'alert_send_time')->value('value') ?? '07:00'
+    rescue(fn () => Parameter::where('key', 'alert_send_time')->value('value'), '07:00', false) ?? '07:00'
 );

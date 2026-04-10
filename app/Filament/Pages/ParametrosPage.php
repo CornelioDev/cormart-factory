@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Parameter;
 use App\Services\ParameterService;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -45,13 +46,30 @@ class ParametrosPage extends Page implements HasForms
             'late_fee_pct'      => round((float) ($params['late_fee_pct']      ?? 5.0),  2),
             'due_alert_days'    => (int)   ($params['due_alert_days']    ?? 5),
             'alert_send_time'   =>          $params['alert_send_time']   ?? '07:00',
+            'timezone'          =>          $params['timezone']          ?? 'America/Santo_Domingo',
         ]);
     }
 
     public function form(Form $form): Form
     {
+        $timezones = collect(timezone_identifiers_list())
+            ->filter(fn ($tz) => str_starts_with($tz, 'America/') || $tz === 'UTC')
+            ->mapWithKeys(fn ($tz) => [$tz => str_replace('_', ' ', $tz)])
+            ->toArray();
+
         return $form
             ->schema([
+                Section::make('General')
+                    ->columns(1)
+                    ->schema([
+                        Select::make('timezone')
+                            ->label('Zona Horaria')
+                            ->options($timezones)
+                            ->searchable()
+                            ->required()
+                            ->helperText('Afecta fechas, horas y el scheduler de notificaciones.'),
+                    ]),
+
                 Section::make('Comisiones y Rendimientos')
                     ->description('Porcentajes que aplican a cada financiamiento y al cierre mensual.')
                     ->columns(2)
@@ -161,7 +179,7 @@ class ParametrosPage extends Page implements HasForms
         $userId  = auth()->id();
 
         // Parámetros que almacenan texto (no numéricos)
-        $stringParams = ['alert_send_time'];
+        $stringParams = ['alert_send_time', 'timezone'];
 
         foreach ($values as $key => $value) {
             if (in_array($key, $stringParams)) {

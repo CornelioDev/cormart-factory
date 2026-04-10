@@ -102,10 +102,10 @@ class CreateTransactionTest extends ServiceTestCase
             'due_date'      => now()->subDays(45),
         ]);
 
-        // 45 days overdue → 2 tiers → 5% × 2 = 10% mora → 10,000
+        // 45 days overdue → floor(45/30) = 1 tier → 5% × 1 = 5% mora → 5,000
         $total = $this->service->calculateTotalOwed([$financing->id]);
 
-        $this->assertEquals(110000.00, $total);
+        $this->assertEquals(105000.00, $total);
     }
 
     public function test_calculate_remaining_balance_for_full_amount(): void

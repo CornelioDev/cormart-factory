@@ -33,7 +33,7 @@ class FinancingService
         }
 
         $daysOverdue = $financing->due_date->diffInDays($paymentDate);
-        $tiers = (int) ceil($daysOverdue / 30);
+        $tiers = (int) floor($daysOverdue / 30);
         $rate = (float) Parameter::where('key', 'late_fee_pct')->value('value');
         $balance = $financing->remainingBalance();
 

@@ -136,13 +136,13 @@ class FinancingServiceTest extends ServiceTestCase
         $this->assertEquals(0.00, $fee);
     }
 
-    public function test_late_fee_one_tier_15_days_overdue(): void
+    public function test_late_fee_is_zero_when_under_30_days_overdue(): void
     {
         $financing = $this->createDisbursedFinancing();
         $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-16'));
 
-        // 15 days overdue → ceil(15/30) = 1 tier → 100,000 × 5% × 1 = 5,000
-        $this->assertEquals(5000.00, $fee);
+        // 15 days overdue → floor(15/30) = 0 tiers → no mora
+        $this->assertEquals(0.00, $fee);
     }
 
     public function test_late_fee_one_tier_30_days_overdue(): void
@@ -150,17 +150,17 @@ class FinancingServiceTest extends ServiceTestCase
         $financing = $this->createDisbursedFinancing();
         $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-31'));
 
-        // 30 days → ceil(30/30) = 1 tier → 5,000
+        // 30 days → floor(30/30) = 1 tier → 100,000 × 5% × 1 = 5,000
         $this->assertEquals(5000.00, $fee);
     }
 
-    public function test_late_fee_two_tiers_45_days_overdue(): void
+    public function test_late_fee_one_tier_45_days_overdue(): void
     {
         $financing = $this->createDisbursedFinancing();
         $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-02-15'));
 
-        // 45 days → ceil(45/30) = 2 tiers → 100,000 × 5% × 2 = 10,000
-        $this->assertEquals(10000.00, $fee);
+        // 45 days → floor(45/30) = 1 tier → 100,000 × 5% × 1 = 5,000
+        $this->assertEquals(5000.00, $fee);
     }
 
     public function test_late_fee_on_partial_balance(): void
@@ -170,7 +170,7 @@ class FinancingServiceTest extends ServiceTestCase
         ]);
         $fee = $this->service->calculateLateFee($financing, Carbon::parse('2026-01-16'));
 
-        // Balance = 60,000, 15 days → 1 tier → 60,000 × 5% × 1 = 3,000
-        $this->assertEquals(3000.00, $fee);
+        // Balance = 60,000, 15 days → floor(15/30) = 0 tiers → no mora
+        $this->assertEquals(0.00, $fee);
     }
 }
