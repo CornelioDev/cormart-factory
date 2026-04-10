@@ -48,7 +48,7 @@ class NotificationService
      */
     public function notifyUsers(EloquentCollection $users, Notification $notification): void
     {
-        $users->each(fn (User $user) => rescue(fn () => $user->notify($notification)));
+        $users->each(fn (User $user) => rescue(fn () => $user->notify($notification), report: true));
     }
 
     // ── Métodos de conveniencia ─────────────────────────────────────────

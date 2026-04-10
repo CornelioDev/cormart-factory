@@ -15,7 +15,7 @@ class ReconciliationPage extends Page
 {
     protected static ?string $navigationIcon  = 'heroicon-o-clipboard-document-check';
     protected static ?string $navigationLabel = 'Reconciliación';
-    protected static ?string $navigationGroup = 'Cierre Mensual';
+    protected static ?string $navigationGroup = 'Contabilidad';
     protected static ?string $title           = 'Reconciliación Contable';
     protected static ?int    $navigationSort  = 4;
 

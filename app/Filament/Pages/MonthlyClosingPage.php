@@ -13,7 +13,7 @@ class MonthlyClosingPage extends Page
 {
     protected static ?string $navigationIcon   = 'heroicon-o-calculator';
     protected static ?string $navigationLabel = 'Cierre Mensual';
-    protected static ?string $navigationGroup = 'Cierre Mensual';
+    protected static ?string $navigationGroup = 'Contabilidad';
     protected static ?string $title           = 'Cierre Mensual';
     protected static ?int    $navigationSort  = 1;
 

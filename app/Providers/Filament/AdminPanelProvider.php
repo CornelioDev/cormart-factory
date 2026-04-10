@@ -2,8 +2,10 @@
 
 namespace App\Providers\Filament;
 
-use Filament\Http\Middleware\Authenticate;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use Filament\Http\Middleware\Authenticate;
+use FilipFonal\FilamentLogManager\FilamentLogManager;
+use ShuvroRoy\FilamentSpatieLaravelHealth\FilamentSpatieLaravelHealthPlugin;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -36,6 +38,13 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Pages\Dashboard::class,
             ])
+            ->navigationGroups([
+                'Operaciones',
+                'Contabilidad',
+                'Administración',
+                'Configuración',
+                'Filament Shield',
+            ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 // Widgets\AccountWidget::class,
@@ -54,6 +63,10 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 FilamentShieldPlugin::make(),
+                FilamentSpatieLaravelHealthPlugin::make()
+                    ->authorize(fn () => auth()->user()->hasRole('super_admin'))
+                    ->navigationGroup('Configuración'),
+                FilamentLogManager::make(),
             ])
             ->authMiddleware([
                 Authenticate::class,
