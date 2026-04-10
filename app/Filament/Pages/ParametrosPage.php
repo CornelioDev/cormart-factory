@@ -19,7 +19,7 @@ class ParametrosPage extends Page implements HasForms
 
     protected static ?string $navigationIcon  = 'heroicon-o-adjustments-horizontal';
     protected static ?string $navigationLabel = 'Parámetros';
-    protected static ?string $navigationGroup = 'Cierre Mensual';
+    protected static ?string $navigationGroup = 'Configuración';
     protected static ?string $title           = 'Parámetros de Distribución';
     protected static ?int    $navigationSort  = 3;
 

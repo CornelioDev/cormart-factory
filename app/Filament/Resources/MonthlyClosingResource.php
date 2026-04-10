@@ -13,7 +13,7 @@ class MonthlyClosingResource extends Resource
     protected static ?string $model = MonthlyClosing::class;
     protected static ?string $navigationIcon   = 'heroicon-o-clock';
     protected static ?string $navigationLabel  = 'Historial de Cierres';
-    protected static ?string $navigationGroup  = 'Cierre Mensual';
+    protected static ?string $navigationGroup  = 'Contabilidad';
     protected static ?string $modelLabel       = 'Cierre';
     protected static ?string $pluralModelLabel = 'Historial de Cierres';
     protected static ?int    $navigationSort   = 2;
