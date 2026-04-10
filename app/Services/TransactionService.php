@@ -348,9 +348,9 @@ class TransactionService
         $notificationService = new NotificationService();
 
         if ($transaction->type === 'disbursement') {
-            rescue(fn () => $notificationService->financingDisbursed($transaction, $financings));
+            rescue(fn () => $notificationService->financingDisbursed($transaction, $financings), report: true);
         } elseif ($transaction->type === 'collection' && $transaction->status === 'pending') {
-            rescue(fn () => $notificationService->pendingCollectionCreated($transaction));
+            rescue(fn () => $notificationService->pendingCollectionCreated($transaction), report: true);
         }
     }
 }
