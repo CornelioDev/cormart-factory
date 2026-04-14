@@ -28,6 +28,17 @@ class ViewFundMember extends ViewRecord
 {
     protected static string $resource = FundMemberResource::class;
 
+    public static function canAccess(array $parameters = []): bool
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('member')) {
+            return $user->can('view_fund::member') && $user->fund_member_id !== null;
+        }
+
+        return parent::canAccess($parameters);
+    }
+
     protected function authorizeAccess(): void
     {
         $user = auth()->user();
