@@ -6,12 +6,14 @@ use App\Filament\Resources\UserResource\Pages;
 use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
@@ -87,6 +89,10 @@ class UserResource extends Resource
                         ->contains(fn ($v) => Role::find($v)?->name === 'company_user')
                 )
                 ->helperText('Compañía asociada para este usuario externo'),
+
+            Toggle::make('is_active')
+                ->label('Activo')
+                ->default(true),
         ]);
     }
 
@@ -118,11 +124,22 @@ class UserResource extends Resource
                     })
                     ->toggleable(),
 
+                IconColumn::make('is_active')
+                    ->label('Activo')
+                    ->boolean()
+                    ->toggleable(),
+
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->date('d M Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                TernaryFilter::make('is_active')
+                    ->label('Estado')
+                    ->trueLabel('Solo activos')
+                    ->falseLabel('Solo inactivos'),
             ])
             ->actions([
                 EditAction::make(),

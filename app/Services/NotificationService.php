@@ -22,7 +22,7 @@ class NotificationService
      */
     public function getAdminAndOperatorUsers(): EloquentCollection
     {
-        return User::role(['super_admin', 'operator'])->get();
+        return User::role(['super_admin', 'operator'])->where('is_active', true)->get();
     }
 
     /**
@@ -30,7 +30,7 @@ class NotificationService
      */
     public function getSuperAdminUsers(): EloquentCollection
     {
-        return User::role('super_admin')->get();
+        return User::role('super_admin')->where('is_active', true)->get();
     }
 
     /**
@@ -40,6 +40,7 @@ class NotificationService
     {
         return User::role('company_user')
             ->where('company_id', $companyId)
+            ->where('is_active', true)
             ->get();
     }
 
