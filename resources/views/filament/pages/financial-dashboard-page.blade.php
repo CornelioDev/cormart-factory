@@ -96,11 +96,22 @@
         .fd-section-subtitle { font-size: 12px; margin-top: 2px; }
 
         .fd-section-heading { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; margin-top: 4px; }
+
+        /* Responsive grids */
+        .fd-grid-3 { display:grid; gap:10px; grid-template-columns:1fr; }
+        .fd-grid-2 { display:grid; gap:12px; grid-template-columns:1fr; }
+        @media (min-width:640px) {
+            .fd-grid-3 { grid-template-columns:repeat(2,1fr); }
+            .fd-grid-2 { grid-template-columns:repeat(2,1fr); }
+        }
+        @media (min-width:1024px) {
+            .fd-grid-3 { grid-template-columns:repeat(3,1fr); }
+        }
     </style>
 
     {{-- Selector de período --}}
     <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden" style="padding:12px 20px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:16px">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
             <div style="flex:1;max-width:320px">
                 <label class="fd-label" style="display:block;font-size:14px;font-weight:500;margin-bottom:4px">Período</label>
                 <select wire:model.live="selectedPeriod"
@@ -129,7 +140,7 @@
     @if($snapshot)
         {{-- ══ CAPITAL ══ --}}
         <h3 class="fd-section-heading fd-muted">Capital</h3>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+        <div class="fd-grid-3" style="margin-bottom:10px">
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Capital Total</div>
                 <div class="fd-kpi-value fd-color-primary">RD$ {{ number_format($snapshot['capital_total'], 2, '.', ',') }}</div>
@@ -149,7 +160,7 @@
 
         {{-- ══ FONDO ══ --}}
         <h3 class="fd-section-heading fd-muted">Fondo</h3>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+        <div class="fd-grid-3" style="margin-bottom:10px">
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Ganancias del Fondo</div>
                 <div class="fd-kpi-value {{ $snapshot['fund_balance'] >= 0 ? 'fd-color-success' : 'fd-color-danger' }}">RD$ {{ number_format($snapshot['fund_balance'], 2, '.', ',') }}</div>
@@ -170,7 +181,7 @@
 
         {{-- ══ COMISIONES DEL PERÍODO ══ --}}
         <h3 class="fd-section-heading fd-muted">Comisiones del Período</h3>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px">
+        <div class="fd-grid-3" style="margin-bottom:6px">
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Comisiones del Mes</div>
                 <div class="fd-kpi-value fd-color-primary">RD$ {{ number_format($snapshot['total_commissions'], 2, '.', ',') }}</div>
@@ -187,7 +198,7 @@
                 <div class="fd-kpi-desc fd-muted">Comisiones − gastos − rendimiento fijo</div>
             </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+        <div class="fd-grid-3" style="margin-bottom:10px">
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Reserva del Fondo</div>
                 <div class="fd-kpi-value fd-color-warning">RD$ {{ number_format($snapshot['reserve'], 2, '.', ',') }}</div>
@@ -207,7 +218,7 @@
 
         {{-- ══ INDICADORES OPERATIVOS ══ --}}
         <h3 class="fd-section-heading fd-muted">Indicadores Operativos</h3>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+        <div class="fd-grid-3" style="margin-bottom:10px">
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">% de Cobro Global</div>
                 @php
@@ -230,7 +241,7 @@
         </div>
 
         {{-- ══ CUENTAS POR COBRAR / PAGAR ══ --}}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+        <div class="fd-grid-2" style="margin-bottom:10px">
             {{-- CxC --}}
             <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
                 <div class="fd-header" style="padding:10px 16px">
@@ -283,7 +294,7 @@
         </div>
 
         {{-- ══ GRÁFICOS: Tendencia + Financiamientos por mes ══ --}}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+        <div class="fd-grid-2" style="margin-bottom:10px">
             {{-- Tendencia Financiera --}}
             <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
                 <div class="fd-header" style="padding:10px 16px">
@@ -324,7 +335,7 @@
             <div class="fd-header" style="padding:10px 16px">
                 <h3 class="fd-title fd-section-title">Flujo de Caja</h3>
                 <p class="fd-subtitle fd-section-subtitle">Saldo bancario estimado día a día · Entradas vs salidas</p>
-                <div style="display:flex;gap:16px;margin-top:6px;font-size:11px">
+                <div style="display:flex;gap:16px;margin-top:6px;font-size:11px;flex-wrap:wrap">
                     <span class="fd-muted">Movido: <strong class="fd-text">RD$ {{ number_format($cashflowChartData['total_moved'] ?? 0, 2, '.', ',') }}</strong></span>
                     <span class="fd-muted">Entradas: <strong class="fd-color-success">RD$ {{ number_format($cashflowChartData['total_inflows'] ?? 0, 2, '.', ',') }}</strong></span>
                     <span class="fd-muted">Salidas: <strong class="fd-color-danger">RD$ {{ number_format($cashflowChartData['total_outflows'] ?? 0, 2, '.', ',') }}</strong></span>
@@ -343,7 +354,7 @@
         </div>
 
         {{-- ══ Tabla de distribuciones + Gráfico ROI ══ --}}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+        <div class="fd-grid-2" style="margin-bottom:10px">
             {{-- Tabla de distribuciones --}}
             <div class="fi-section rounded-xl fd-card shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 overflow-hidden">
                 <div class="fd-header" style="padding:10px 16px">
