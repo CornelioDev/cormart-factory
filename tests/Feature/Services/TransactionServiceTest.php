@@ -546,6 +546,170 @@ class TransactionServiceTest extends ServiceTestCase
         $this->assertEquals(7.50, (float) $taxExpense->amount);
     }
 
+    // ── Earnings to capital tests ──────────────────────────────────────────
+
+    private function memberWithBalance(float $earnings = 10000.00): FundMember
+    {
+        $member = FundMember::factory()->create(['type' => 'capital', 'contribution' => 50000]);
+
+        Transaction::create([
+            'type'               => 'earning_distribution',
+            'status'             => 'confirmed',
+            'amount'             => $earnings,
+            'transaction_number' => 'DIST-TEST-' . $member->id,
+            'transaction_date'   => '2026-01-15',
+            'fund_member_id'     => $member->id,
+            'registered_by'      => $this->superAdmin->id,
+            'confirmed_by'       => $this->superAdmin->id,
+            'confirmed_at'       => now(),
+        ]);
+
+        return $member;
+    }
+
+    public function test_earnings_to_capital_creates_confirmed_transaction(): void
+    {
+        $this->actingAs($this->superAdmin);
+        $member = $this->memberWithBalance(10000.00);
+
+        $txn = $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $member->id,
+            'amount'           => 4000.00,
+            'transaction_date' => '2026-01-20',
+        ]);
+
+        $this->assertEquals('earnings_to_capital', $txn->type);
+        $this->assertEquals('confirmed', $txn->status);
+        $this->assertEquals(4000.00, (float) $txn->amount);
+        $this->assertEquals($member->id, $txn->fund_member_id);
+    }
+
+    public function test_earnings_to_capital_deducts_from_earnings_balance(): void
+    {
+        $this->actingAs($this->superAdmin);
+        $member = $this->memberWithBalance(10000.00);
+
+        $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $member->id,
+            'amount'           => 4000.00,
+            'transaction_date' => '2026-01-20',
+        ]);
+
+        $this->assertEquals(6000.00, $member->fresh()->earningsBalance());
+    }
+
+    public function test_earnings_to_capital_increments_member_contribution(): void
+    {
+        $this->actingAs($this->superAdmin);
+        $member = $this->memberWithBalance(10000.00);
+        $originalContribution = (float) $member->contribution;
+
+        $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $member->id,
+            'amount'           => 4000.00,
+            'transaction_date' => '2026-01-20',
+        ]);
+
+        $this->assertEquals($originalContribution + 4000.00, (float) $member->fresh()->contribution);
+    }
+
+    public function test_earnings_to_capital_credits_capital_account(): void
+    {
+        $this->actingAs($this->superAdmin);
+        $member = $this->memberWithBalance(10000.00);
+        $balanceBefore = (float) CapitalAccount::first()->balance;
+
+        $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $member->id,
+            'amount'           => 4000.00,
+            'transaction_date' => '2026-01-20',
+        ]);
+
+        $this->assertEquals($balanceBefore + 4000.00, (float) CapitalAccount::first()->balance);
+    }
+
+    public function test_earnings_to_capital_does_not_generate_tax_expense(): void
+    {
+        $this->actingAs($this->superAdmin);
+        $member = $this->memberWithBalance(10000.00);
+        $expenseCountBefore = Transaction::where('type', 'expense')->count();
+
+        $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $member->id,
+            'amount'           => 4000.00,
+            'transaction_date' => '2026-01-20',
+        ]);
+
+        $this->assertEquals($expenseCountBefore, Transaction::where('type', 'expense')->count());
+    }
+
+    public function test_earnings_to_capital_throws_when_amount_exceeds_balance(): void
+    {
+        $this->actingAs($this->superAdmin);
+        $member = $this->memberWithBalance(3000.00);
+
+        $this->expectException(\Exception::class);
+        $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $member->id,
+            'amount'           => 5000.00,
+            'transaction_date' => '2026-01-20',
+        ]);
+    }
+
+    public function test_earnings_to_capital_throws_when_amount_is_zero(): void
+    {
+        $this->actingAs($this->superAdmin);
+        $member = $this->memberWithBalance(10000.00);
+
+        $this->expectException(\Exception::class);
+        $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $member->id,
+            'amount'           => 0,
+            'transaction_date' => '2026-01-20',
+        ]);
+    }
+
+    public function test_earnings_to_capital_recalculates_fund_percentages(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        // memberA = 50000, memberB = 50000 → each 50%
+        $memberA = FundMember::factory()->create([
+            'type'            => 'capital',
+            'contribution'    => 50000,
+            'fund_percentage' => 50.0000,
+        ]);
+        $memberB = FundMember::factory()->create([
+            'type'            => 'capital',
+            'contribution'    => 50000,
+            'fund_percentage' => 50.0000,
+        ]);
+
+        // Give memberA a balance to capitalize
+        Transaction::create([
+            'type'               => 'earning_distribution',
+            'status'             => 'confirmed',
+            'amount'             => 10000.00,
+            'transaction_number' => 'DIST-A-' . $memberA->id,
+            'transaction_date'   => '2026-01-15',
+            'fund_member_id'     => $memberA->id,
+            'registered_by'      => $this->superAdmin->id,
+            'confirmed_by'       => $this->superAdmin->id,
+            'confirmed_at'       => now(),
+        ]);
+
+        // memberA capitalizes 10000 → contribution becomes 60000
+        // total = 60000 + 50000 = 110000
+        $this->service->createEarningsToCapitalTransfer([
+            'fund_member_id'   => $memberA->id,
+            'amount'           => 10000.00,
+            'transaction_date' => '2026-01-20',
+        ]);
+
+        $this->assertEqualsWithDelta(54.5455, (float) $memberA->fresh()->fund_percentage, 0.001);
+        $this->assertEqualsWithDelta(45.4545, (float) $memberB->fresh()->fund_percentage, 0.001);
+    }
+
     // ── Late fee tests ───────────────────────────────────────────────────
 
     private function createOverdueFinancing(float $amount = 100000.00, string $dueDate = '2026-01-01'): Financing

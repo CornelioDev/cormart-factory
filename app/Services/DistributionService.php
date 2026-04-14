@@ -24,8 +24,10 @@ class DistributionService
 
         [$year, $month] = explode('-', $period);
 
-        $capitalMembers = FundMember::where('type', 'capital')
-            ->where('active', true)
+        $capitalMembers = FundMember::where('active', true)
+            ->where(fn ($q) => $q->where('type', 'capital')
+                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
+            )
             ->get();
 
         $inKindMember = FundMember::where('type', 'in_kind')
@@ -63,27 +65,32 @@ class DistributionService
             2
         );
 
-        $memberDistributions = $capitalMembers->map(function ($member) use ($fixedReturnPct, $availableCapital) {
-            $fixed        = round($member->contribution * ($fixedReturnPct / 100), 2);
-            $proportional = round($availableCapital * ($member->fund_percentage / 100), 2);
-            return [
-                'fund_member_id'      => $member->id,
-                'name'                => $member->name,
-                'type'                => $member->type,
-                'fixed_amount'        => $fixed,
-                'proportional_amount' => $proportional,
-                'total_amount'        => round($fixed + $proportional, 2),
-            ];
-        })->toArray();
+        $memberDistributions = $capitalMembers
+            ->filter(fn ($m) => $m->type === 'capital')
+            ->map(function ($member) use ($fixedReturnPct, $availableCapital) {
+                $fixed        = round($member->contribution * ($fixedReturnPct / 100), 2);
+                $proportional = round($availableCapital * ($member->fund_percentage / 100), 2);
+                return [
+                    'fund_member_id'      => $member->id,
+                    'name'                => $member->name,
+                    'type'                => $member->type,
+                    'fixed_amount'        => $fixed,
+                    'proportional_amount' => $proportional,
+                    'total_amount'        => round($fixed + $proportional, 2),
+                ];
+            })->toArray();
 
         if ($inKindMember) {
+            $inKindFixed        = round($inKindMember->contribution * ($fixedReturnPct / 100), 2);
+            $inKindProportional = round($availableCapital * ($inKindMember->fund_percentage / 100), 2);
+
             $memberDistributions[] = [
                 'fund_member_id'      => $inKindMember->id,
                 'name'                => $inKindMember->name,
                 'type'                => $inKindMember->type,
-                'fixed_amount'        => 0,
-                'proportional_amount' => $inKindPayment,
-                'total_amount'        => $inKindPayment,
+                'fixed_amount'        => $inKindFixed,
+                'proportional_amount' => round($inKindProportional + $inKindPayment, 2),
+                'total_amount'        => round($inKindFixed + $inKindProportional + $inKindPayment, 2),
             ];
         }
 
@@ -166,7 +173,9 @@ class DistributionService
             }
 
             if ($totalDistributed > 0) {
-                $fundAccountService->debit($totalDistributed);
+                $taxPct      = (float) ($data['parameters']['tax_pct'] ?? 0);
+                $taxReserve  = $taxPct > 0 ? round($totalDistributed * ($taxPct / 100), 2) : 0;
+                $fundAccountService->debit($totalDistributed + $taxReserve);
             }
 
             return $closing;

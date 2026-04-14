@@ -74,13 +74,52 @@ class FundMemberTest extends ServiceTestCase
         $this->assertEquals(8000.00, $this->member->totalEarned());
     }
 
-    public function test_earnings_disbursements_returns_only_member_disbursements(): void
+    public function test_earnings_disbursements_includes_member_disbursements_and_capitalizations(): void
     {
         $this->createEarningDistribution(5000.00);
         $this->createMemberDisbursement(1000.00);
         $this->createMemberDisbursement(500.00);
 
         $this->assertEquals(2, $this->member->earningsDisbursements()->count());
+    }
+
+    public function test_earnings_to_capital_counts_in_total_disbursed(): void
+    {
+        $this->createEarningDistribution(10000.00);
+
+        Transaction::create([
+            'type'             => 'earnings_to_capital',
+            'status'           => 'confirmed',
+            'amount'           => 3000.00,
+            'transaction_date' => '2026-01-20',
+            'fund_member_id'   => $this->member->id,
+            'registered_by'    => $this->user->id,
+            'confirmed_by'     => $this->user->id,
+            'confirmed_at'     => now(),
+        ]);
+
+        $this->assertEquals(3000.00, $this->member->totalDisbursed());
+        $this->assertEquals(7000.00, $this->member->earningsBalance());
+    }
+
+    public function test_earnings_to_capital_appears_in_earnings_disbursements_relation(): void
+    {
+        $this->createEarningDistribution(10000.00);
+        $this->createMemberDisbursement(2000.00);
+
+        Transaction::create([
+            'type'             => 'earnings_to_capital',
+            'status'           => 'confirmed',
+            'amount'           => 3000.00,
+            'transaction_date' => '2026-01-20',
+            'fund_member_id'   => $this->member->id,
+            'registered_by'    => $this->user->id,
+            'confirmed_by'     => $this->user->id,
+            'confirmed_at'     => now(),
+        ]);
+
+        $this->assertEquals(2, $this->member->earningsDisbursements()->count());
+        $this->assertEquals(5000.00, $this->member->earningsBalance());
     }
 
     public function test_balance_is_zero_with_no_transactions(): void

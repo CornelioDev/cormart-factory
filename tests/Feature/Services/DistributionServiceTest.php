@@ -383,4 +383,115 @@ class DistributionServiceTest extends ServiceTestCase
         // 15000 = 2000 + 4500 + 1700 + 3400 + 3400
         $this->assertEquals(0.0, (float) $result['verification_diff']);
     }
+
+    // ── Hybrid in_kind (with capitalized contribution) tests ──────────────
+
+    /**
+     * Fixture híbrido:
+     *   memberA (capital) contribution = 100000, fund_percentage = 50%
+     *   inKind  (in_kind) contribution = 100000, fund_percentage = 50%
+     *   total_commissions = 15000
+     *   total_fixed = (100000 + 100000) × 0.03 = 6000
+     *   net_profit = 15000 - 6000 = 9000
+     *   reserve = 9000 × 0.20 = 1800
+     *   post_reserve = 9000 - 1800 = 7200
+     *   in_kind_payment = 7200 × 0.50 = 3600
+     *   available = 7200 - 3600 = 3600
+     *
+     *   memberA: fixed = 3000, proportional = 3600 × 50% = 1800, total = 4800
+     *   inKind:  fixed = 3000, proportional = 3600 × 50% = 1800, in_kind = 3600, total = 8400
+     *   diff = 15000 - (6000 + 1800 + 3600 + 3600) = 0
+     */
+    private function createHybridMembers(): array
+    {
+        $memberA = FundMember::factory()->create([
+            'name'            => 'Capital A',
+            'type'            => 'capital',
+            'contribution'    => 100000.00,
+            'fund_percentage' => 50.0000,
+        ]);
+
+        $inKind = FundMember::factory()->create([
+            'name'            => 'In Kind Hybrid',
+            'type'            => 'in_kind',
+            'contribution'    => 100000.00,
+            'fund_percentage' => 50.0000,
+        ]);
+
+        return [$memberA, $inKind];
+    }
+
+    public function test_in_kind_with_capital_receives_fixed_return(): void
+    {
+        $this->createHybridMembers();
+        $this->createFinancingsForPeriod(3, 5000.00);
+
+        $result = $this->service->calculate($this->period);
+
+        $inKindDist = collect($result['distributions'])->firstWhere('type', 'in_kind');
+
+        $this->assertEquals(3000.00, (float) $inKindDist['fixed_amount']); // 100000 × 3%
+    }
+
+    public function test_in_kind_with_capital_receives_proportional_share(): void
+    {
+        $this->createHybridMembers();
+        $this->createFinancingsForPeriod(3, 5000.00);
+
+        $result = $this->service->calculate($this->period);
+
+        $inKindDist = collect($result['distributions'])->firstWhere('type', 'in_kind');
+
+        // proportional = 3600 × 50% = 1800, plus in_kind_payment = 3600 → total proportional = 5400
+        $this->assertEquals(5400.00, (float) $inKindDist['proportional_amount']);
+    }
+
+    public function test_in_kind_with_capital_total_includes_all_three_components(): void
+    {
+        $this->createHybridMembers();
+        $this->createFinancingsForPeriod(3, 5000.00);
+
+        $result = $this->service->calculate($this->period);
+
+        $inKindDist = collect($result['distributions'])->firstWhere('type', 'in_kind');
+
+        // fixed(3000) + proportional(1800) + in_kind(3600) = 8400
+        $this->assertEquals(8400.00, (float) $inKindDist['total_amount']);
+    }
+
+    public function test_verification_diff_is_zero_with_hybrid_in_kind(): void
+    {
+        $this->createHybridMembers();
+        $this->createFinancingsForPeriod(3, 5000.00);
+
+        $result = $this->service->calculate($this->period);
+
+        $this->assertEquals(0.0, (float) $result['verification_diff']);
+    }
+
+    public function test_in_kind_without_capital_still_receives_only_in_kind_payment(): void
+    {
+        // Asegura que el comportamiento original no se rompió
+        $this->createStandardMembers();
+        $this->createFinancingsForPeriod(3, 5000.00);
+
+        $result = $this->service->calculate($this->period);
+
+        $inKindDist = collect($result['distributions'])->firstWhere('type', 'in_kind');
+
+        $this->assertEquals(0.0, (float) $inKindDist['fixed_amount']);
+        $this->assertEquals(4200.00, (float) $inKindDist['proportional_amount']);
+        $this->assertEquals(4200.00, (float) $inKindDist['total_amount']);
+    }
+
+    public function test_hybrid_in_kind_is_included_in_total_fixed_calculation(): void
+    {
+        $this->createHybridMembers();
+        $this->createFinancingsForPeriod(3, 5000.00);
+
+        $result = $this->service->calculate($this->period);
+
+        // total_fixed = (100000 + 100000) × 3% = 6000
+        $this->assertEquals(6000.00, (float) $result['total_fixed']);
+    }
 }

@@ -76,7 +76,8 @@ class Transaction extends Model
         return match ($this->type) {
             'expense'                => $this->supplier?->name,
             'earning_distribution',
-            'member_disbursement'    => $this->fundMember?->name,
+            'member_disbursement',
+            'earnings_to_capital'    => $this->fundMember?->name,
             default                  => $this->company?->name,
         };
     }
