@@ -34,6 +34,30 @@ class FundMemberResource extends Resource
     protected static ?string $pluralModelLabel = 'Miembros del Fondo';
     protected static ?int    $navigationSort   = 4;
 
+    /**
+     * El rol member necesita pasar el gate viewAny para poder ver su propio
+     * registro vía ViewFundMember, pero no debe ver el listado ni el nav item.
+     */
+    public static function canViewAny(): bool
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('member')) {
+            return $user->can('view_fund::member') && $user->fund_member_id !== null;
+        }
+
+        return parent::canViewAny();
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        if (auth()->user()?->hasRole('member')) {
+            return false;
+        }
+
+        return parent::shouldRegisterNavigation();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
