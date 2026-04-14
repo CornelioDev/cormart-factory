@@ -114,7 +114,7 @@ class TransactionService
     /**
      * Auto-genera un gasto de impuesto (tax_pct) asociado a un desembolso.
      */
-    private function createTaxExpense(Transaction $disbursement, array $disbursementData): void
+    private function createTaxExpense(Transaction $disbursement, array $disbursementData, bool $debitFund = true): void
     {
         $taxPct = (float) Parameter::where('key', 'tax_pct')->value('value');
 
@@ -141,8 +141,10 @@ class TransactionService
             'confirmed_at'       => now(),
         ]);
 
-        // Debitar gasto del fondo
-        (new FundAccountService())->debit($taxAmount);
+        // Debitar gasto del fondo (omitir si el cierre mensual ya pre-reservó el impuesto)
+        if ($debitFund) {
+            (new FundAccountService())->debit($taxAmount);
+        }
     }
 
     /**
@@ -279,12 +281,12 @@ class TransactionService
                 'confirmed_at'       => now(),
             ]);
 
-            // Auto-generar gasto de impuesto
+            // Auto-generar gasto de impuesto (el fondo ya fue debitado en el cierre mensual)
             $this->createTaxExpense($transaction, [
                 'bank'             => $data['bank'],
                 'transaction_date' => $data['transaction_date'],
                 'registered_by'    => auth()->id(),
-            ]);
+            ], debitFund: false);
 
             return $transaction;
         });
@@ -292,6 +294,47 @@ class TransactionService
         rescue(fn () => (new NotificationService())->memberDisbursementCreated($transaction, $member));
 
         return $transaction;
+    }
+
+    /**
+     * Transfiere ganancias de un miembro a su capital aportado.
+     */
+    public function createEarningsToCapitalTransfer(array $data): Transaction
+    {
+        $member = FundMember::findOrFail($data['fund_member_id']);
+
+        return DB::transaction(function () use ($data, $member) {
+            $amount = (float) $data['amount'];
+
+            if ($amount <= 0) {
+                throw new \Exception('El monto debe ser mayor a cero.');
+            }
+
+            if ($amount > $member->earningsBalance()) {
+                throw new \Exception(
+                    'Monto excede el balance de ganancias disponible (RD$ '
+                    . number_format($member->earningsBalance(), 2, '.', ',') . ').'
+                );
+            }
+
+            $transaction = Transaction::create([
+                'type'             => 'earnings_to_capital',
+                'status'           => 'confirmed',
+                'amount'           => $amount,
+                'transaction_date' => $data['transaction_date'],
+                'fund_member_id'   => $member->id,
+                'notes'            => $data['notes'] ?? "Capitalización de ganancias — {$member->name}",
+                'registered_by'    => auth()->id(),
+                'confirmed_by'     => auth()->id(),
+                'confirmed_at'     => now(),
+            ]);
+
+            $member->increment('contribution', $amount);
+            (new FundMemberService())->recalculateAllPercentages();
+            (new CapitalAccountService())->credit($amount);
+
+            return $transaction;
+        });
     }
 
     /**

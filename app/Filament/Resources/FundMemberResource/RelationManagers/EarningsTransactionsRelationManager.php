@@ -21,7 +21,7 @@ class EarningsTransactionsRelationManager extends RelationManager
             ->modifyQueryUsing(fn (Builder $query) =>
                 Transaction::query()
                     ->where('fund_member_id', $this->getOwnerRecord()->id)
-                    ->whereIn('type', ['earning_distribution', 'member_disbursement'])
+                    ->whereIn('type', ['earning_distribution', 'member_disbursement', 'earnings_to_capital'])
             )
             ->defaultSort('transaction_date', 'desc')
             ->columns([
@@ -43,11 +43,13 @@ class EarningsTransactionsRelationManager extends RelationManager
                     ->color(fn (string $state): string => match ($state) {
                         'earning_distribution' => 'success',
                         'member_disbursement'  => 'warning',
+                        'earnings_to_capital'  => 'primary',
                         default                => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'earning_distribution' => 'Distribución',
                         'member_disbursement'  => 'Desembolso',
+                        'earnings_to_capital'  => 'Capitalización',
                         default                => $state,
                     })
                     ->toggleable(),
@@ -85,6 +87,7 @@ class EarningsTransactionsRelationManager extends RelationManager
                     ->options([
                         'earning_distribution' => 'Distribución',
                         'member_disbursement'  => 'Desembolso',
+                        'earnings_to_capital'  => 'Capitalización',
                     ]),
             ]);
     }
