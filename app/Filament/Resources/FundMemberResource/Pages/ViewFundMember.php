@@ -28,6 +28,21 @@ class ViewFundMember extends ViewRecord
 {
     protected static string $resource = FundMemberResource::class;
 
+    protected function authorizeAccess(): void
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('member')) {
+            abort_unless(
+                $user->can('view_fund::member') && $user->fund_member_id === $this->getRecord()->id,
+                403
+            );
+            return;
+        }
+
+        parent::authorizeAccess();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
