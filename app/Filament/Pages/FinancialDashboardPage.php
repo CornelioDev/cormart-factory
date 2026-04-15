@@ -187,6 +187,16 @@ class FinancialDashboardPage extends Page
         $this->snapshot['cxp_total']  = (float) Financing::where('status', 'solicited')->sum('transfer_amount');
         $this->snapshot['cxp_count']  = Financing::where('status', 'solicited')->count();
         $this->snapshot['cxp_amount'] = (float) Financing::where('status', 'solicited')->sum('amount');
+
+        // Margen de solvencia: banco estimado vs ganancias comprometidas pendientes de pago
+        $pendingEarnings = round(
+            (float) Transaction::where('type', 'earning_distribution')->where('status', 'confirmed')->sum('amount')
+            - (float) Transaction::whereIn('type', ['member_disbursement', 'earnings_to_capital'])->where('status', 'confirmed')->sum('amount'),
+            2
+        );
+        $this->snapshot['pending_earnings']     = $pendingEarnings;
+        $this->snapshot['solvency_margin']      = round($this->snapshot['estimated_bank'] - $pendingEarnings, 2);
+        $this->snapshot['bank_covers_earnings'] = $this->snapshot['solvency_margin'] >= 0;
     }
 
     public function getChartData(): array

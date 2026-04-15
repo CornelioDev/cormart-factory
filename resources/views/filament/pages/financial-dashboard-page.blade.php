@@ -160,7 +160,7 @@
 
         {{-- ══ FONDO ══ --}}
         <h3 class="fd-section-heading fd-muted">Fondo</h3>
-        <div class="fd-grid-3" style="margin-bottom:10px">
+        <div class="fd-grid-3" style="margin-bottom:6px">
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Ganancias del Fondo</div>
                 <div class="fd-kpi-value {{ $snapshot['fund_balance'] >= 0 ? 'fd-color-success' : 'fd-color-danger' }}">RD$ {{ number_format($snapshot['fund_balance'], 2, '.', ',') }}</div>
@@ -176,6 +176,17 @@
                 @php $accNetProfit = (float) \App\Models\MonthlyClosing::sum('net_profit') + ($snapshot['is_closed'] ? 0 : $snapshot['net_profit']); @endphp
                 <div class="fd-kpi-value {{ $accNetProfit >= 0 ? 'fd-color-success' : 'fd-color-danger' }}">RD$ {{ number_format($accNetProfit, 2, '.', ',') }}</div>
                 <div class="fd-kpi-desc fd-muted">Ganancia neta histórica acumulada</div>
+            </div>
+        </div>
+        <div class="fd-grid-3" style="margin-bottom:10px">
+            <div class="fd-kpi">
+                <div class="fd-kpi-label fd-muted">Margen de Solvencia</div>
+                <div class="fd-kpi-value {{ $snapshot['bank_covers_earnings'] ? 'fd-color-success' : 'fd-color-danger' }}">
+                    RD$ {{ number_format(abs($snapshot['solvency_margin']), 2, '.', ',') }}
+                </div>
+                <div class="fd-kpi-desc fd-muted">
+                    {{ $snapshot['bank_covers_earnings'] ? 'Banco cubre ganancias comprometidas' : 'Déficit — banco insuficiente para miembros' }}
+                </div>
             </div>
         </div>
 
