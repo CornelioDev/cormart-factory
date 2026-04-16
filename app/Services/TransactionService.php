@@ -37,7 +37,8 @@ class TransactionService
                     + (float) Transaction::where('type', 'collection')->where('status', 'confirmed')->sum('amount')
                     - (float) Transaction::where('type', 'disbursement')->where('status', 'confirmed')->sum('amount')
                     - (float) Transaction::where('type', 'expense')->where('status', 'confirmed')->sum('amount')
-                    - (float) Transaction::where('type', 'member_disbursement')->where('status', 'confirmed')->sum('amount');
+                    - (float) Transaction::where('type', 'member_disbursement')->where('status', 'confirmed')->sum('amount')
+                    - (float) Transaction::where('type', 'earnings_to_capital')->where('status', 'confirmed')->sum('amount');
 
                 $pendingEarnings = round(
                     (float) Transaction::where('type', 'earning_distribution')->where('status', 'confirmed')->sum('amount')

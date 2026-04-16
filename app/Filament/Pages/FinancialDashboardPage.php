@@ -140,8 +140,10 @@ class FinancialDashboardPage extends Page
             ->where('status', 'confirmed')->sum('amount');
         $memberDisbursements = (float) Transaction::where('type', 'member_disbursement')
             ->where('status', 'confirmed')->sum('amount');
+        $earningsToCapital = (float) Transaction::where('type', 'earnings_to_capital')
+            ->where('status', 'confirmed')->sum('amount');
 
-        $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements;
+        $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements - $earningsToCapital;
 
         // Capital disponible: directamente del ledger
         $this->snapshot['capital_available'] = max(0, (float) CapitalAccount::instance()->balance);

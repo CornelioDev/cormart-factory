@@ -180,13 +180,11 @@
         </div>
         <div class="fd-grid-3" style="margin-bottom:10px">
             <div class="fd-kpi">
-                <div class="fd-kpi-label fd-muted">Margen de Solvencia</div>
-                <div class="fd-kpi-value {{ $snapshot['bank_covers_earnings'] ? 'fd-color-success' : 'fd-color-danger' }}">
-                    RD$ {{ number_format(abs($snapshot['solvency_margin']), 2, '.', ',') }}
+                <div class="fd-kpi-label fd-muted">Ganancias por Pagar a Miembros</div>
+                <div class="fd-kpi-value {{ $snapshot['pending_earnings'] > 0 ? 'fd-color-warning' : 'fd-color-success' }}">
+                    RD$ {{ number_format($snapshot['pending_earnings'], 2, '.', ',') }}
                 </div>
-                <div class="fd-kpi-desc fd-muted">
-                    {{ $snapshot['bank_covers_earnings'] ? 'Banco cubre ganancias comprometidas' : 'Déficit — banco insuficiente para miembros' }}
-                </div>
+                <div class="fd-kpi-desc fd-muted">Distribuciones pendientes de desembolso</div>
             </div>
         </div>
 
