@@ -66,6 +66,9 @@ class TransactionService
                 $data['company_id'] = $financings->first()?->company_id;
             }
 
+            // Garantizar status explícito en el modelo (el default de BD no se refleja en memoria)
+            $data['status'] ??= 'pending';
+
             $transaction = Transaction::create($data);
             $transaction->financings()->sync($financingIds);
 
