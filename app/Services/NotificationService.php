@@ -6,6 +6,7 @@ use App\Models\Financing;
 use App\Models\FundMember;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Notifications\AccountingLedgerError;
 use App\Notifications\FinancingApproachingDueDate;
 use App\Notifications\FinancingDisbursed;
 use App\Notifications\FinancingOverdue;
@@ -101,6 +102,17 @@ class NotificationService
         $this->notifyUsers(
             $this->getSuperAdminUsers(),
             new MemberDisbursementRequested($transaction, $member),
+        );
+    }
+
+    /**
+     * Error contable detectado → Super Admin.
+     */
+    public function accountingLedgerError(array $failedChecks): void
+    {
+        $this->notifyUsers(
+            $this->getSuperAdminUsers(),
+            new AccountingLedgerError($failedChecks),
         );
     }
 
