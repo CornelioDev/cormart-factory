@@ -235,6 +235,37 @@
 
 ---
 
+## v1.6.0 — Capitalización de ganancias y gestión de usuarios ✅
+
+### Capitalización de ganancias → capital
+
+- [x] Migración: agregar `earnings_to_capital` al ENUM `transactions.type`
+- [x] `FundMember`: `earningsDisbursements()` incluye `earnings_to_capital`
+- [x] `Transaction`: `getBeneficiario()` incluye el nuevo tipo
+- [x] `FundMemberService`: `recalculateAllPercentages()` incluye `in_kind` con `contribution > 0`
+- [x] `TransactionService`: nuevo método `createEarningsToCapitalTransfer()`
+- [x] `DistributionService`: cálculo híbrido — miembro `in_kind` con capital recibe fijo + proporcional + in_kind
+- [x] `ViewFundMember`: acción "Capitalizar Ganancias" (super_admin)
+- [x] `EarningsTransactionsRelationManager`: tipo "Capitalización" en tabla y filtros
+- [x] Tests: FundMemberTest, TransactionServiceTest, DistributionServiceTest cubriendo todos los casos
+
+### Bug fix
+
+- [x] Fix: `MemberAccountPage::canAccess()` usaba `hasRole()` ignorando Shield — reemplazado por `can('page_MemberAccountPage')`
+
+### Gestión de usuarios — desactivación
+
+- [x] Migración: columna `is_active boolean default true` en `users`
+- [x] `User`: `is_active` en fillable/casts; `canAccessPanel()` lo verifica
+- [x] `UserResource`: Toggle en form, IconColumn y TernaryFilter en tabla
+- [x] `NotificationService`: filtro `is_active = true` en los tres métodos de destinatarios
+
+### Cierre de versión
+- [x] Visto bueno del usuario
+- [x] Merge a master, bump v1.6.0, tag, push
+
+---
+
 ## v1.3.0 — Contabilidad por pool (capital_account) (en desarrollo)
 
 ### Base de datos

@@ -45,7 +45,7 @@ class FundMember extends Model
 
     public function earningsDisbursements(): HasMany
     {
-        return $this->hasMany(Transaction::class)->where('type', 'member_disbursement');
+        return $this->hasMany(Transaction::class)->whereIn('type', ['member_disbursement', 'earnings_to_capital']);
     }
 
     public function totalEarned(): float

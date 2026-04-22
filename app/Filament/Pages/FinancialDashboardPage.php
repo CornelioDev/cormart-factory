@@ -121,8 +121,11 @@ class FinancialDashboardPage extends Page
             ->value('pending');
         $this->snapshot['capital_in_street'] = $capitalInStreet;
 
-        $totalCapital = (float) FundMember::where('type', 'capital')
-            ->where('active', true)
+        // Incluye in_kind con contribution > 0 (capitalización de ganancias híbrida)
+        $totalCapital = (float) FundMember::where('active', true)
+            ->where(fn ($q) => $q->where('type', 'capital')
+                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
+            )
             ->sum('contribution');
         $this->snapshot['capital_total'] = $totalCapital;
 
@@ -137,8 +140,10 @@ class FinancialDashboardPage extends Page
             ->where('status', 'confirmed')->sum('amount');
         $memberDisbursements = (float) Transaction::where('type', 'member_disbursement')
             ->where('status', 'confirmed')->sum('amount');
+        $earningsToCapital = (float) Transaction::where('type', 'earnings_to_capital')
+            ->where('status', 'confirmed')->sum('amount');
 
-        $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements;
+        $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements - $earningsToCapital;
 
         // Capital disponible: directamente del ledger
         $this->snapshot['capital_available'] = max(0, (float) CapitalAccount::instance()->balance);
@@ -187,6 +192,16 @@ class FinancialDashboardPage extends Page
         $this->snapshot['cxp_total']  = (float) Financing::where('status', 'solicited')->sum('transfer_amount');
         $this->snapshot['cxp_count']  = Financing::where('status', 'solicited')->count();
         $this->snapshot['cxp_amount'] = (float) Financing::where('status', 'solicited')->sum('amount');
+
+        // Margen de solvencia: banco estimado vs ganancias comprometidas pendientes de pago
+        $pendingEarnings = round(
+            (float) Transaction::where('type', 'earning_distribution')->where('status', 'confirmed')->sum('amount')
+            - (float) Transaction::whereIn('type', ['member_disbursement', 'earnings_to_capital'])->where('status', 'confirmed')->sum('amount'),
+            2
+        );
+        $this->snapshot['pending_earnings']     = $pendingEarnings;
+        $this->snapshot['solvency_margin']      = round($this->snapshot['estimated_bank'] - $pendingEarnings, 2);
+        $this->snapshot['bank_covers_earnings'] = $this->snapshot['solvency_margin'] >= 0;
     }
 
     public function getChartData(): array
@@ -289,8 +304,10 @@ class FinancialDashboardPage extends Page
     {
         $closings = MonthlyClosing::orderBy('period')->get();
 
-        $totalCapital = (float) FundMember::where('type', 'capital')
-            ->where('active', true)
+        $totalCapital = (float) FundMember::where('active', true)
+            ->where(fn ($q) => $q->where('type', 'capital')
+                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
+            )
             ->sum('contribution');
 
         $labels = [];

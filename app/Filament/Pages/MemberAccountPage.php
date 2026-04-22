@@ -19,7 +19,7 @@ class MemberAccountPage extends Page
     {
         $user = auth()->user();
 
-        return $user->hasRole('member') && $user->fund_member_id !== null;
+        return $user->can('page_MemberAccountPage') && $user->fund_member_id !== null;
     }
 
     public function mount(): void

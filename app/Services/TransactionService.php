@@ -28,7 +28,36 @@ class TransactionService
             $financings = Financing::whereIn('id', $financingIds)->get();
 
             if ($data['type'] === 'disbursement') {
-                $data['amount'] = $financings->sum('transfer_amount');
+                $disbursementAmount = (float) $financings->sum('transfer_amount');
+                $taxPct    = (float) Parameter::where('key', 'tax_pct')->value('value');
+                $taxAmount = $taxPct > 0 ? round($disbursementAmount * ($taxPct / 100), 2) : 0;
+
+                $capitalTotal = (float) \App\Models\FundMember::where('type', 'capital')->where('active', true)->sum('contribution');
+                $currentBank  = $capitalTotal
+                    + (float) Transaction::where('type', 'collection')->where('status', 'confirmed')->sum('amount')
+                    - (float) Transaction::where('type', 'disbursement')->where('status', 'confirmed')->sum('amount')
+                    - (float) Transaction::where('type', 'expense')->where('status', 'confirmed')->sum('amount')
+                    - (float) Transaction::where('type', 'member_disbursement')->where('status', 'confirmed')->sum('amount')
+                    - (float) Transaction::where('type', 'earnings_to_capital')->where('status', 'confirmed')->sum('amount');
+
+                $pendingEarnings = round(
+                    (float) Transaction::where('type', 'earning_distribution')->where('status', 'confirmed')->sum('amount')
+                    - (float) Transaction::whereIn('type', ['member_disbursement', 'earnings_to_capital'])->where('status', 'confirmed')->sum('amount'),
+                    2
+                );
+
+                $bankAfter = round($currentBank - $disbursementAmount - $taxAmount, 2);
+
+                if ($pendingEarnings > 0 && $bankAfter < $pendingEarnings) {
+                    throw new \Exception(
+                        'El desembolso dejaría el banco en RD$' . number_format($bankAfter, 2, '.', ',')
+                        . ', insuficiente para cubrir las ganancias comprometidas a miembros (RD$'
+                        . number_format($pendingEarnings, 2, '.', ',') . ').'
+                        . ' Déficit: RD$' . number_format($pendingEarnings - $bankAfter, 2, '.', ',') . '.'
+                    );
+                }
+
+                $data['amount'] = $disbursementAmount;
             } elseif (! isset($data['amount']) || $data['amount'] === null) {
                 $data['amount'] = $financings->sum('amount');
             }
@@ -37,6 +66,9 @@ class TransactionService
             if ($data['type'] === 'collection') {
                 $data['company_id'] = $financings->first()?->company_id;
             }
+
+            // Garantizar status explícito en el modelo (el default de BD no se refleja en memoria)
+            $data['status'] ??= 'pending';
 
             $transaction = Transaction::create($data);
             $transaction->financings()->sync($financingIds);
@@ -114,7 +146,7 @@ class TransactionService
     /**
      * Auto-genera un gasto de impuesto (tax_pct) asociado a un desembolso.
      */
-    private function createTaxExpense(Transaction $disbursement, array $disbursementData): void
+    private function createTaxExpense(Transaction $disbursement, array $disbursementData, bool $debitFund = true): void
     {
         $taxPct = (float) Parameter::where('key', 'tax_pct')->value('value');
 
@@ -141,8 +173,10 @@ class TransactionService
             'confirmed_at'       => now(),
         ]);
 
-        // Debitar gasto del fondo
-        (new FundAccountService())->debit($taxAmount);
+        // Debitar gasto del fondo (omitir si el cierre mensual ya pre-reservó el impuesto)
+        if ($debitFund) {
+            (new FundAccountService())->debit($taxAmount);
+        }
     }
 
     /**
@@ -279,12 +313,12 @@ class TransactionService
                 'confirmed_at'       => now(),
             ]);
 
-            // Auto-generar gasto de impuesto
+            // Auto-generar gasto de impuesto (el fondo ya fue debitado en el cierre mensual)
             $this->createTaxExpense($transaction, [
                 'bank'             => $data['bank'],
                 'transaction_date' => $data['transaction_date'],
                 'registered_by'    => auth()->id(),
-            ]);
+            ], debitFund: false);
 
             return $transaction;
         });
@@ -292,6 +326,47 @@ class TransactionService
         rescue(fn () => (new NotificationService())->memberDisbursementCreated($transaction, $member));
 
         return $transaction;
+    }
+
+    /**
+     * Transfiere ganancias de un miembro a su capital aportado.
+     */
+    public function createEarningsToCapitalTransfer(array $data): Transaction
+    {
+        $member = FundMember::findOrFail($data['fund_member_id']);
+
+        return DB::transaction(function () use ($data, $member) {
+            $amount = (float) $data['amount'];
+
+            if ($amount <= 0) {
+                throw new \Exception('El monto debe ser mayor a cero.');
+            }
+
+            if ($amount > $member->earningsBalance()) {
+                throw new \Exception(
+                    'Monto excede el balance de ganancias disponible (RD$ '
+                    . number_format($member->earningsBalance(), 2, '.', ',') . ').'
+                );
+            }
+
+            $transaction = Transaction::create([
+                'type'             => 'earnings_to_capital',
+                'status'           => 'confirmed',
+                'amount'           => $amount,
+                'transaction_date' => $data['transaction_date'],
+                'fund_member_id'   => $member->id,
+                'notes'            => $data['notes'] ?? "Capitalización de ganancias — {$member->name}",
+                'registered_by'    => auth()->id(),
+                'confirmed_by'     => auth()->id(),
+                'confirmed_at'     => now(),
+            ]);
+
+            $member->increment('contribution', $amount);
+            (new FundMemberService())->recalculateAllPercentages();
+            (new CapitalAccountService())->credit($amount);
+
+            return $transaction;
+        });
     }
 
     /**

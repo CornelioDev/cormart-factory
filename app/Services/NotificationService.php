@@ -6,6 +6,7 @@ use App\Models\Financing;
 use App\Models\FundMember;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Notifications\AccountingLedgerError;
 use App\Notifications\FinancingApproachingDueDate;
 use App\Notifications\FinancingDisbursed;
 use App\Notifications\FinancingOverdue;
@@ -22,7 +23,7 @@ class NotificationService
      */
     public function getAdminAndOperatorUsers(): EloquentCollection
     {
-        return User::role(['super_admin', 'operator'])->get();
+        return User::role(['super_admin', 'operator'])->where('is_active', true)->get();
     }
 
     /**
@@ -30,7 +31,7 @@ class NotificationService
      */
     public function getSuperAdminUsers(): EloquentCollection
     {
-        return User::role('super_admin')->get();
+        return User::role('super_admin')->where('is_active', true)->get();
     }
 
     /**
@@ -40,6 +41,7 @@ class NotificationService
     {
         return User::role('company_user')
             ->where('company_id', $companyId)
+            ->where('is_active', true)
             ->get();
     }
 
@@ -100,6 +102,17 @@ class NotificationService
         $this->notifyUsers(
             $this->getSuperAdminUsers(),
             new MemberDisbursementRequested($transaction, $member),
+        );
+    }
+
+    /**
+     * Error contable detectado → Super Admin.
+     */
+    public function accountingLedgerError(array $failedChecks): void
+    {
+        $this->notifyUsers(
+            $this->getSuperAdminUsers(),
+            new AccountingLedgerError($failedChecks),
         );
     }
 

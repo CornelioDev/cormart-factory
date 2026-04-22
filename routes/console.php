@@ -15,5 +15,9 @@ Schedule::command('app:send-financing-alerts')->dailyAt(
     rescue(fn () => Parameter::where('key', 'alert_send_time')->value('value'), '07:00', false) ?? '07:00'
 );
 
+Schedule::command('app:check-accounting-ledgers')->dailyAt(
+    rescue(fn () => Parameter::where('key', 'alert_send_time')->value('value'), '07:00', false) ?? '07:00'
+);
+
 Schedule::command(ScheduleCheckHeartbeatCommand::class)->everyFiveMinutes();
 Schedule::command(RunHealthChecksCommand::class)->everyFiveMinutes();

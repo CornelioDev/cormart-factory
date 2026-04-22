@@ -71,8 +71,11 @@ class ReconciliationPage extends Page
     private function loadChecks(): void
     {
         // Check 1: CapitalAccount
-        $totalCapital = (float) FundMember::where('type', 'capital')
-            ->where('active', true)
+        // Incluye in_kind con contribution > 0 (capitalización de ganancias híbrida)
+        $totalCapital = (float) FundMember::where('active', true)
+            ->where(fn ($q) => $q->where('type', 'capital')
+                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
+            )
             ->sum('contribution');
 
         $totalCollectedCapital = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])

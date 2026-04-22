@@ -28,6 +28,32 @@ class ViewFundMember extends ViewRecord
 {
     protected static string $resource = FundMemberResource::class;
 
+    public static function canAccess(array $parameters = []): bool
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('member')) {
+            return $user->can('view_fund::member') && $user->fund_member_id !== null;
+        }
+
+        return parent::canAccess($parameters);
+    }
+
+    protected function authorizeAccess(): void
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('member')) {
+            abort_unless(
+                $user->can('view_fund::member') && $user->fund_member_id === $this->getRecord()->id,
+                403
+            );
+            return;
+        }
+
+        parent::authorizeAccess();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -177,6 +203,72 @@ class ViewFundMember extends ViewRecord
                     Notification::make()
                         ->title('Desembolso registrado')
                         ->body("Se desembolsaron ganancias a {$record->name}")
+                        ->success()
+                        ->send();
+
+                    $this->redirect(static::getUrl(['record' => $record]));
+                }),
+
+            Actions\Action::make('capitalize_earnings')
+                ->label('Capitalizar Ganancias')
+                ->icon('heroicon-o-arrow-trending-up')
+                ->color('primary')
+                ->visible(fn (FundMember $record): bool =>
+                    auth()->user()->hasRole('super_admin')
+                    && $record->earningsBalance() > 0
+                )
+                ->form([
+                    Placeholder::make('balance_display')
+                        ->label('Balance Disponible')
+                        ->content(fn (FundMember $record): string =>
+                            'RD$ ' . number_format($record->earningsBalance(), 2, '.', ',')
+                        ),
+
+                    TextInput::make('amount')
+                        ->label('Monto a Capitalizar')
+                        ->prefix('RD$')
+                        ->required()
+                        ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
+                        ->stripCharacters(',')
+                        ->numeric()
+                        ->rule(fn (FundMember $record): \Closure =>
+                            function (string $attribute, $value, \Closure $fail) use ($record) {
+                                $amount = (float) str_replace(',', '', $value);
+                                if ($amount <= 0) {
+                                    $fail('El monto debe ser mayor a cero.');
+                                }
+                                if ($amount > $record->earningsBalance()) {
+                                    $fail('El monto excede el balance disponible.');
+                                }
+                            }
+                        ),
+
+                    DatePicker::make('transaction_date')
+                        ->label('Fecha')
+                        ->required()
+                        ->default(now())
+                        ->displayFormat('d/m/Y'),
+
+                    Textarea::make('notes')
+                        ->label('Notas')
+                        ->maxLength(500),
+                ])
+                ->modalHeading(fn (FundMember $record): string =>
+                    "Capitalizar Ganancias — {$record->name}"
+                )
+                ->modalSubmitActionLabel('Capitalizar')
+                ->requiresConfirmation()
+                ->action(function (FundMember $record, array $data): void {
+                    (new TransactionService())->createEarningsToCapitalTransfer([
+                        'fund_member_id'   => $record->id,
+                        'amount'           => (float) str_replace(',', '', $data['amount']),
+                        'transaction_date' => $data['transaction_date'],
+                        'notes'            => $data['notes'],
+                    ]);
+
+                    Notification::make()
+                        ->title('Ganancias capitalizadas')
+                        ->body("Se capitalizaron ganancias de {$record->name}")
                         ->success()
                         ->send();
 
