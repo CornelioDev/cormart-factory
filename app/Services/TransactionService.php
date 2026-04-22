@@ -28,7 +28,28 @@ class TransactionService
             $financings = Financing::whereIn('id', $financingIds)->get();
 
             if ($data['type'] === 'disbursement') {
-                $disbursementAmount = (float) $financings->sum('transfer_amount');
+                // Si hay un solo financiamiento y viene amount explícito, es una partida parcial.
+                // Si no, se desembolsa el monto pendiente de cada financiamiento (puede ser múltiple).
+                $isPartial = count($financingIds) === 1
+                    && isset($data['amount'])
+                    && $data['amount'] !== null
+                    && (float) $data['amount'] > 0;
+
+                if ($isPartial) {
+                    $financing = $financings->first();
+                    $remaining = $financing->remainingToDisburse();
+                    $disbursementAmount = round((float) $data['amount'], 2);
+
+                    if ($disbursementAmount > $remaining + 0.001) {
+                        throw new \Exception(
+                            'El monto de la partida (RD$' . number_format($disbursementAmount, 2, '.', ',')
+                            . ') excede lo pendiente por desembolsar (RD$' . number_format($remaining, 2, '.', ',') . ').'
+                        );
+                    }
+                } else {
+                    $disbursementAmount = (float) $financings->sum(fn (Financing $f) => $f->remainingToDisburse());
+                }
+
                 $taxPct    = (float) Parameter::where('key', 'tax_pct')->value('value');
                 $taxAmount = $taxPct > 0 ? round($disbursementAmount * ($taxPct / 100), 2) : 0;
 
@@ -86,23 +107,7 @@ class TransactionService
 
             // Actualizar estado de los financiamientos
             if ($data['type'] === 'disbursement') {
-                $financings->each(fn (Financing $f) => $f->update([
-                    'status'       => 'disbursed',
-                    'disbursed_at' => now(),
-                    'issue_period' => now()->format('Y-m'),
-                ]));
-
-                // Comisión cobrada por adelantado — acreditar al fondo
-                $totalCommission = $financings->sum('commission');
-                if ($totalCommission > 0) {
-                    (new FundAccountService())->credit($totalCommission);
-                }
-
-                // Debitar capital comprometido (monto total del financiamiento)
-                $totalAmount = (float) $financings->sum('amount');
-                if ($totalAmount > 0) {
-                    (new CapitalAccountService())->debit($totalAmount);
-                }
+                $this->applyDisbursementToFinancings($transaction, $financings, $disbursementAmount, $isPartial ?? false);
 
                 // Auto-generar gasto de impuesto sobre el monto desembolsado
                 $this->createTaxExpense($transaction, $data);
@@ -120,6 +125,65 @@ class TransactionService
 
             return $transaction;
         });
+    }
+
+    /**
+     * Aplica un desembolso a los financiamientos vinculados.
+     *
+     * - Si es partida parcial (1 financiamiento, monto explícito): acumula en disbursed_amount.
+     * - Si es desembolso completo de varios financiamientos: cada uno recibe lo que le falte
+     *   por desembolsar (remainingToDisburse).
+     *
+     * Comisión: solo se retiene al pasar de solicited → (partially_disbursed | disbursed)
+     * por primera vez. issue_period y disbursed_at se fijan en ese momento.
+     * due_date se calcula sólo cuando el financiamiento queda totalmente desembolsado.
+     */
+    private function applyDisbursementToFinancings(
+        Transaction $transaction,
+        Collection $financings,
+        float $disbursementAmount,
+        bool $isPartial
+    ): void {
+        $totalCommissionFirstTime = 0.0;
+
+        $financings->each(function (Financing $f) use ($disbursementAmount, $isPartial, &$totalCommissionFirstTime) {
+            $paymentForThis = $isPartial ? $disbursementAmount : $f->remainingToDisburse();
+            if ($paymentForThis <= 0) {
+                return;
+            }
+
+            $isFirstPartida = $f->status === 'solicited';
+            $newDisbursed   = round((float) $f->disbursed_amount + $paymentForThis, 2);
+            $fullyDisbursed = $newDisbursed + 0.001 >= (float) $f->transfer_amount;
+
+            $updates = [
+                'disbursed_amount' => $fullyDisbursed ? (float) $f->transfer_amount : $newDisbursed,
+                'status'           => $fullyDisbursed ? 'disbursed' : 'partially_disbursed',
+            ];
+
+            if ($isFirstPartida) {
+                $updates['disbursed_at'] = now();
+                $updates['issue_period'] = now()->format('Y-m');
+                $totalCommissionFirstTime += (float) $f->commission;
+            }
+
+            // due_date se fija a la fecha del último desembolso + term_days. Mientras
+            // el financiamiento siga parcial, se mantiene null para no generar mora.
+            $updates['due_date'] = $fullyDisbursed
+                ? now()->addDays((int) $f->term_days)
+                : null;
+
+            $f->update($updates);
+        });
+
+        if ($totalCommissionFirstTime > 0) {
+            (new FundAccountService())->credit($totalCommissionFirstTime);
+        }
+
+        $capitalDebit = round($disbursementAmount + $totalCommissionFirstTime, 2);
+        if ($capitalDebit > 0) {
+            (new CapitalAccountService())->debit($capitalDebit);
+        }
     }
 
     /**
@@ -381,7 +445,7 @@ class TransactionService
         $financings = Financing::whereIn('id', $financingIds)->get();
 
         return $type === 'disbursement'
-            ? (float) $financings->sum('transfer_amount')
+            ? (float) $financings->sum(fn (Financing $f) => $f->remainingToDisburse())
             : (float) $financings->sum('amount');
     }
 

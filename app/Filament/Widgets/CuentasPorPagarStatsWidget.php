@@ -14,10 +14,14 @@ class CuentasPorPagarStatsWidget extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $totalTransfer = (float) Financing::where('status', 'solicited')->sum('transfer_amount');
+        $pendingStatuses = ['solicited', 'partially_disbursed'];
+
+        $totalTransfer = (float) Financing::whereIn('status', $pendingStatuses)
+            ->selectRaw('COALESCE(SUM(transfer_amount - disbursed_amount), 0) as pending')
+            ->value('pending');
         $totalAmount   = (float) Financing::where('status', 'solicited')->sum('amount');
-        $count         = Financing::where('status', 'solicited')->count();
-        $avgDays       = (float) (Financing::where('status', 'solicited')
+        $count         = Financing::whereIn('status', $pendingStatuses)->count();
+        $avgDays       = (float) (Financing::whereIn('status', $pendingStatuses)
             ->selectRaw('AVG(DATEDIFF(NOW(), request_date)) as avg_days')
             ->value('avg_days') ?? 0);
 

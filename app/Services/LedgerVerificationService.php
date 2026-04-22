@@ -76,10 +76,15 @@ class LedgerVerificationService
         $totalCollectedCapital = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
             ->sum('collected_amount');
 
-        $totalDisbursedAmount = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('amount');
+        // Capital realmente debitado: físicamente desembolsado (al cliente) + comisión retenida (al fondo).
+        // Ambas salen del CapitalAccount al primer desembolso o partidas siguientes.
+        $totalDisbursedPhysical = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
+            ->sum('disbursed_amount');
 
-        $expected = round($totalCapital + $totalCollectedCapital - $totalDisbursedAmount, 2);
+        $totalCommissionRetained = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
+            ->sum('commission');
+
+        $expected = round($totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained, 2);
         $actual = (float) CapitalAccount::instance()->balance;
 
         return [
@@ -88,7 +93,7 @@ class LedgerVerificationService
             'actual'   => $actual,
             'diff'     => round($expected - $actual, 2),
             'pass'     => abs($expected - $actual) < 0.01,
-            'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsos monto ({$totalDisbursedAmount})",
+            'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained})",
         ];
     }
 
