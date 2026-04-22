@@ -147,7 +147,7 @@ class TransactionResource extends Resource
                     }
 
                     $statuses = $type === 'disbursement'
-                        ? ['solicited']
+                        ? ['solicited', 'partially_disbursed']
                         : ['disbursed', 'partially_collected'];
 
                     $query = Financing::query()
@@ -160,17 +160,18 @@ class TransactionResource extends Resource
                         });
 
                     return $query->with('client')->get()
-                        ->mapWithKeys(fn (Financing $f): array => [
-                            $f->id => sprintf(
-                                '%s — %s — RD$ %s%s',
-                                $f->code ?? ('FN' . str_pad($f->id, 6, '0', STR_PAD_LEFT)),
-                                $f->client->name,
-                                number_format($f->amount, 2, '.', ','),
-                                $f->collected_amount > 0
-                                    ? ' (Pendiente: RD$ ' . number_format($f->remainingBalance(), 2, '.', ',') . ')'
-                                    : ''
-                            ),
-                        ])
+                        ->mapWithKeys(function (Financing $f) use ($type): array {
+                            $code = $f->code ?? ('FN' . str_pad($f->id, 6, '0', STR_PAD_LEFT));
+                            $label = sprintf('%s — %s — RD$ %s', $code, $f->client->name, number_format($f->amount, 2, '.', ','));
+
+                            if ($type === 'disbursement' && (float) $f->disbursed_amount > 0) {
+                                $label .= ' (Pend. desembolso: RD$ ' . number_format($f->remainingToDisburse(), 2, '.', ',') . ')';
+                            } elseif ($type === 'collection' && (float) $f->collected_amount > 0) {
+                                $label .= ' (Pendiente: RD$ ' . number_format($f->remainingBalance(), 2, '.', ',') . ')';
+                            }
+
+                            return [$f->id => $label];
+                        })
                         ->toArray();
                 })
                 ->afterStateUpdated(function (Get $get, Set $set, array $state): void {
@@ -221,10 +222,17 @@ class TransactionResource extends Resource
                 ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
                 ->stripCharacters(',')
                 ->numeric()
-                ->disabled(fn (Get $get): bool =>
-                    $get('type') === 'disbursement'
-                    || ($get('type') === 'collection' && count($get('financing_ids') ?? []) > 1)
-                )
+                ->disabled(function (Get $get): bool {
+                    $type = $get('type');
+                    $count = count($get('financing_ids') ?? []);
+                    if ($type === 'disbursement') {
+                        return $count !== 1;
+                    }
+                    if ($type === 'collection') {
+                        return $count > 1;
+                    }
+                    return false;
+                })
                 ->dehydrated()
                 ->default(function () use ($qType, $qFinancingIds): ?string {
                     if (! $qType || empty($qFinancingIds)) {
@@ -238,11 +246,43 @@ class TransactionResource extends Resource
                     return $amount > 0 ? number_format($amount, 2, '.', ',') : null;
                 })
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null)
+                ->rules([
+                    fn (Get $get): \Closure => function (string $attribute, $value, \Closure $fail) use ($get) {
+                        if ($get('type') !== 'disbursement') {
+                            return;
+                        }
+                        $ids = $get('financing_ids') ?? [];
+                        if (count($ids) !== 1) {
+                            return;
+                        }
+                        $financing = Financing::find($ids[0]);
+                        if (! $financing) {
+                            return;
+                        }
+                        $amount = $value ? (float) str_replace(',', '', $value) : 0;
+                        if ($amount > $financing->remainingToDisburse() + 0.001) {
+                            $fail('El monto de la partida no puede superar el pendiente por desembolsar (RD$ '
+                                . number_format($financing->remainingToDisburse(), 2, '.', ',') . ').');
+                        }
+                    },
+                ])
                 ->helperText(function (Get $get): ?string {
-                    if ($get('type') !== 'collection') {
+                    $type = $get('type');
+                    $ids = $get('financing_ids') ?? [];
+
+                    if ($type === 'disbursement') {
+                        if (count($ids) === 1) {
+                            return 'Puede ingresar un monto parcial (partida) o el total pendiente.';
+                        }
+                        if (count($ids) > 1) {
+                            return 'Con varios financiamientos seleccionados se desembolsa el pendiente completo de cada uno.';
+                        }
                         return null;
                     }
-                    $ids = $get('financing_ids') ?? [];
+
+                    if ($type !== 'collection') {
+                        return null;
+                    }
                     if (count($ids) > 1) {
                         return 'Pago parcial no disponible cuando hay múltiples financiamientos seleccionados';
                     }

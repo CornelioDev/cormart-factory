@@ -19,6 +19,7 @@ class Financing extends Model
         'amount',
         'commission',
         'transfer_amount',
+        'disbursed_amount',
         'collected_amount',
         'late_fee_amount',
         'late_fee_pending',
@@ -38,6 +39,7 @@ class Financing extends Model
         'amount'           => 'decimal:2',
         'commission'       => 'decimal:2',
         'transfer_amount'  => 'decimal:2',
+        'disbursed_amount' => 'decimal:2',
         'collected_amount'  => 'decimal:2',
         'late_fee_amount'   => 'decimal:2',
         'late_fee_pending'  => 'decimal:2',
@@ -85,6 +87,16 @@ class Financing extends Model
     public function remainingBalance(): float
     {
         return round((float) $this->amount - (float) $this->collected_amount, 2);
+    }
+
+    public function remainingToDisburse(): float
+    {
+        return round((float) $this->transfer_amount - (float) $this->disbursed_amount, 2);
+    }
+
+    public function isFullyDisbursed(): bool
+    {
+        return $this->remainingToDisburse() <= 0.001;
     }
 
     public function totalOwed(\Carbon\Carbon $asOfDate = null): float

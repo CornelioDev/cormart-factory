@@ -30,7 +30,7 @@ class FinancingPipelineWidget extends BaseWidget
             : Financing::query();
 
         $solicited        = $base()->where('status', 'solicited');
-        $disbursed        = $base()->where('status', 'disbursed');
+        $disbursed        = $base()->whereIn('status', ['disbursed', 'partially_disbursed']);
         $partialCollected = $base()->where('status', 'partially_collected');
         $period           = now()->format('Y-m');
         $collected        = $base()->where('status', 'collected')->where('collection_period', $period);
@@ -42,7 +42,7 @@ class FinancingPipelineWidget extends BaseWidget
                 ->icon('heroicon-o-clock'),
 
             Stat::make('Desembolsados', $disbursed->count())
-                ->description('RD$ ' . number_format($disbursed->sum('transfer_amount'), 2, '.', ',') . ' en calle')
+                ->description('RD$ ' . number_format($disbursed->sum('disbursed_amount'), 2, '.', ',') . ' en calle')
                 ->color('info')
                 ->icon('heroicon-o-arrow-up-tray'),
 

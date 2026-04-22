@@ -81,15 +81,17 @@ class ReconciliationPage extends Page
         $totalCollectedCapital = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
             ->sum('collected_amount');
 
-        $totalDisbursedAmount = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('amount');
+        $totalDisbursedPhysical = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
+            ->sum('disbursed_amount');
 
-        $expectedCapital = round($totalCapital + $totalCollectedCapital - $totalDisbursedAmount, 2);
+        $totalCommissionRetained = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
+            ->sum('commission');
+
+        $expectedCapital = round($totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained, 2);
         $actualCapital = (float) CapitalAccount::instance()->balance;
 
         // Check 2: FundAccount
-        $totalCommissions = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('commission');
+        $totalCommissions = $totalCommissionRetained;
 
         $totalLateFeeCollected = (float) Financing::sum('late_fee_amount');
 
@@ -108,16 +110,17 @@ class ReconciliationPage extends Page
         $collectedOverAmount = Financing::whereRaw('collected_amount > amount')->count();
         $collectedNoDate = Financing::where('status', 'collected')
             ->whereNull('collected_at')->count();
-        $disbursedNoPeriod = Financing::whereIn('status', ['disbursed', 'partially_collected', 'collected'])
+        $disbursedNoPeriod = Financing::whereIn('status', ['partially_disbursed', 'disbursed', 'partially_collected', 'collected'])
             ->whereNull('issue_period')->count();
         $integrityIssues = $collectedOverAmount + $collectedNoDate + $disbursedNoPeriod;
 
         // Check 4: Transaction Balance (desembolsos)
+        // Las transacciones de desembolso suman el monto físico acumulado en cada partida.
+        // Debe coincidir con la suma de disbursed_amount de los financiamientos activos.
         $txnDisbursements = (float) Transaction::where('type', 'disbursement')
             ->where('status', 'confirmed')
             ->sum('amount');
-        $financingTransfers = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('transfer_amount');
+        $financingTransfers = $totalDisbursedPhysical;
         $disbursementDiff = round(abs($txnDisbursements - $financingTransfers), 2);
 
         $this->checks = [
@@ -127,7 +130,7 @@ class ReconciliationPage extends Page
                 'actual'   => $actualCapital,
                 'diff'     => round($expectedCapital - $actualCapital, 2),
                 'pass'     => abs($expectedCapital - $actualCapital) < 0.01,
-                'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsos monto ({$totalDisbursedAmount})",
+                'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained})",
             ],
             [
                 'name'     => 'Cuenta del Fondo',
@@ -151,7 +154,7 @@ class ReconciliationPage extends Page
                 'actual'   => $txnDisbursements,
                 'diff'     => $disbursementDiff,
                 'pass'     => $disbursementDiff < 0.01,
-                'detail'   => "Transacciones desembolso ({$txnDisbursements}) vs. Financiamientos transfer_amount ({$financingTransfers})",
+                'detail'   => "Transacciones desembolso ({$txnDisbursements}) vs. Financiamientos disbursed_amount ({$financingTransfers})",
             ],
         ];
     }
