@@ -56,17 +56,22 @@ Fondo
 
 ### Estados de Financing
 ```
-solicited → disbursed → partially_collected → collected
-    ↓            ↓              ↓
- cancelled    cancelled     cancelled  (cancellation_reason obligatorio)
+solicited → partially_disbursed → disbursed → partially_collected → collected
+    ↓
+ cancelled  (cancellation_reason obligatorio — solo desde solicited)
 ```
 
+- `partially_disbursed`: El financiamiento ha recibido una o más partidas pero aún no se desembolsa el total.
+- `disbursed_amount`: Campo decimal que acumula el monto físicamente desembolsado al cliente (suma de las partidas). No incluye comisión.
 - `partially_collected`: El financiamiento ha recibido abonos parciales pero no se ha completado el cobro total.
 - `collected_amount`: Campo decimal que acumula el monto cobrado. Al alcanzar `amount`, el status pasa a `collected`.
 - `collection_period` y `collected_at` se asignan solo al completar el cobro total (último abono).
+- `issue_period` y `disbursed_at` se fijan en la **primera partida** (transición `solicited → partially_disbursed`). La comisión completa se retiene al primer desembolso.
+- `due_date` se calcula al completarse el desembolso total (`fecha_última_partida + term_days`). Mientras el status sea `partially_disbursed`, `due_date` puede ser null.
+- No se permite cancelar un financiamiento una vez que está `partially_disbursed` o más adelante. Solo desde `solicited`.
 
 ### Tipos de Transaction
-- `disbursement`: Fondo → Compañía. Se confirma automáticamente.
+- `disbursement`: Fondo → Compañía. Se confirma automáticamente. Puede ser una partida parcial (1 solo financiamiento, monto explícito ≤ `remainingToDisburse`) o el desembolso completo de varios financiamientos.
 - `collection`: Deudor → Fondo. Puede ser cobro completo o abono parcial. Requiere confirmación de operator si lo crea un company_user.
 
 ---

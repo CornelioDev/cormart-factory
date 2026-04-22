@@ -18,10 +18,10 @@ class ViewFinancing extends ViewRecord
                 ->visible(fn (): bool => $this->record->status === 'solicited'),
 
             Actions\Action::make('disburse')
-                ->label('Desembolsar')
+                ->label(fn (): string => $this->record->status === 'partially_disbursed' ? 'Registrar partida' : 'Desembolsar')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('info')
-                ->visible(fn (): bool => $this->record->status === 'solicited'
+                ->visible(fn (): bool => in_array($this->record->status, ['solicited', 'partially_disbursed'])
                     && auth()->user()->hasAnyRole(['super_admin', 'operator']))
                 ->url(fn (): string => '/admin/transactions/create?' . http_build_query([
                     'type'          => 'disbursement',

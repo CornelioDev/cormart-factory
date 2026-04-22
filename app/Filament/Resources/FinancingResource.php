@@ -275,22 +275,24 @@ class FinancingResource extends Resource
                         ->label('Estado')
                         ->badge()
                         ->color(fn (string $state): string => match ($state) {
-                            'solicited'           => 'warning',
-                            'disbursed'           => 'info',
-                            'pending_payment'     => 'warning',
-                            'partially_collected' => 'primary',
-                            'collected'           => 'success',
-                            'cancelled'           => 'danger',
-                            default               => 'gray',
+                            'solicited'            => 'warning',
+                            'partially_disbursed'  => 'warning',
+                            'disbursed'            => 'info',
+                            'pending_payment'      => 'warning',
+                            'partially_collected'  => 'primary',
+                            'collected'            => 'success',
+                            'cancelled'            => 'danger',
+                            default                => 'gray',
                         })
                         ->formatStateUsing(fn (string $state): string => match ($state) {
-                            'solicited'           => 'Solicitado',
-                            'disbursed'           => 'Desembolsado',
-                            'pending_payment'     => 'Pago Pendiente',
-                            'partially_collected' => 'Abonado',
-                            'collected'           => 'Cobrado',
-                            'cancelled'           => 'Cancelado',
-                            default               => $state,
+                            'solicited'            => 'Solicitado',
+                            'partially_disbursed'  => 'Parc. desembolsado',
+                            'disbursed'            => 'Desembolsado',
+                            'pending_payment'      => 'Pago Pendiente',
+                            'partially_collected'  => 'Abonado',
+                            'collected'            => 'Cobrado',
+                            'cancelled'            => 'Cancelado',
+                            default                => $state,
                         }),
 
                     TextEntry::make('company.name')
@@ -310,6 +312,20 @@ class FinancingResource extends Resource
                     TextEntry::make('transfer_amount')
                         ->label('Monto a Transferir')
                         ->money('DOP', locale: 'es_DO'),
+
+                    TextEntry::make('disbursed_amount')
+                        ->label('Desembolsado')
+                        ->money('DOP', locale: 'es_DO')
+                        ->visible(fn (Financing $record): bool => (float) $record->disbursed_amount > 0),
+
+                    TextEntry::make('remaining_to_disburse')
+                        ->label('Pendiente de Desembolso')
+                        ->state(fn (Financing $record): string =>
+                            'RD$ ' . number_format($record->remainingToDisburse(), 2, '.', ',')
+                        )
+                        ->color('warning')
+                        ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                        ->visible(fn (Financing $record): bool => $record->status === 'partially_disbursed'),
 
                     TextEntry::make('collected_amount')
                         ->label('Monto Cobrado')
@@ -554,12 +570,13 @@ class FinancingResource extends Resource
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options([
-                        'solicited'           => 'Solicitado',
-                        'disbursed'           => 'Desembolsado',
-                        'pending_payment'     => 'Pago Pendiente',
-                        'partially_collected' => 'Abonado',
-                        'collected'           => 'Cobrado',
-                        'cancelled'           => 'Cancelado',
+                        'solicited'            => 'Solicitado',
+                        'partially_disbursed'  => 'Parc. desembolsado',
+                        'disbursed'            => 'Desembolsado',
+                        'pending_payment'      => 'Pago Pendiente',
+                        'partially_collected'  => 'Abonado',
+                        'collected'            => 'Cobrado',
+                        'cancelled'            => 'Cancelado',
                     ]),
 
                 SelectFilter::make('company_id')
@@ -587,10 +604,10 @@ class FinancingResource extends Resource
                             return;
                         }
 
-                        if ($statuses->count() > 1 || $statuses->first() !== 'solicited') {
+                        if ($statuses->diff(['solicited', 'partially_disbursed'])->isNotEmpty()) {
                             Notification::make()
                                 ->title('Selección inválida')
-                                ->body('Todos los financiamientos deben estar en estado "Solicitado".')
+                                ->body('Todos los financiamientos deben estar en estado "Solicitado" o "Parc. desembolsado".')
                                 ->danger()
                                 ->send();
                             return;
