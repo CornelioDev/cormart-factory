@@ -131,24 +131,14 @@ class FinancialDashboardPage extends Page
             ->sum('contribution');
         $this->snapshot['capital_total'] = $totalCapital;
 
-        // Saldo estimado banco (necesario antes de capital_available)
-        $this->snapshot['fund_balance'] = (float) FundAccount::instance()->balance;
+        // Saldo estimado del banco: suma de los dos ledgers reales (capital + fondo).
+        // ReconciliationPage garantiza que estos balances reflejan el cash real.
+        $fundBalance    = (float) FundAccount::instance()->balance;
+        $capitalBalance = (float) CapitalAccount::instance()->balance;
 
-        $collections = (float) Transaction::where('type', 'collection')
-            ->where('status', 'confirmed')->sum('amount');
-        $disbursements = (float) Transaction::where('type', 'disbursement')
-            ->where('status', 'confirmed')->sum('amount');
-        $expenses = (float) Transaction::where('type', 'expense')
-            ->where('status', 'confirmed')->sum('amount');
-        $memberDisbursements = (float) Transaction::where('type', 'member_disbursement')
-            ->where('status', 'confirmed')->sum('amount');
-        $earningsToCapital = (float) Transaction::where('type', 'earnings_to_capital')
-            ->where('status', 'confirmed')->sum('amount');
-
-        $this->snapshot['estimated_bank'] = $totalCapital + $collections - $disbursements - $expenses - $memberDisbursements - $earningsToCapital;
-
-        // Capital disponible: directamente del ledger
-        $this->snapshot['capital_available'] = max(0, (float) CapitalAccount::instance()->balance);
+        $this->snapshot['fund_balance']       = $fundBalance;
+        $this->snapshot['estimated_bank']     = round($capitalBalance + $fundBalance, 2);
+        $this->snapshot['capital_available']  = max(0, $capitalBalance);
 
         // % de Cobro global: cobrados / (cobrados + activos en calle)
         $globalCollected = Financing::where('status', 'collected')->count();
@@ -352,35 +342,31 @@ class FinancialDashboardPage extends Page
         $today     = now()->endOfDay();
         $lastDate  = $endDate->lt($today) ? $endDate : $today;
 
-        // Saldo inicial: capital + todas las transacciones confirmadas antes del período
-        $totalCapital = (float) FundMember::where('type', 'capital')
-            ->where('active', true)
-            ->sum('contribution');
+        // Sólo tipos que mueven cash en el banco. Las distribuciones de ganancias
+        // (earning_distribution) y capitalizaciones (earnings_to_capital) son
+        // asientos contables internos — no afectan el saldo bancario.
+        $cashflowOutTypes = ['disbursement', 'expense', 'member_disbursement'];
 
-        $priorCollections = (float) Transaction::where('type', 'collection')
-            ->where('status', 'confirmed')
-            ->where('transaction_date', '<', $startDate)
-            ->sum('amount');
+        // Saldo inicial: balance real del banco hoy (ledgers) menos los movimientos
+        // de cash desde el inicio del período hasta ahora. Esto garantiza que la
+        // trayectoria diaria reconstruya el saldo verdadero del banco.
+        $bankNow = (float) CapitalAccount::instance()->balance
+                 + (float) FundAccount::instance()->balance;
 
-        $priorDisbursements = (float) Transaction::where('type', 'disbursement')
-            ->where('status', 'confirmed')
-            ->where('transaction_date', '<', $startDate)
-            ->sum('amount');
+        $netSinceStart = (float) Transaction::where('type', 'collection')
+                ->where('status', 'confirmed')
+                ->where('transaction_date', '>=', $startDate)
+                ->sum('amount')
+            - (float) Transaction::whereIn('type', $cashflowOutTypes)
+                ->where('status', 'confirmed')
+                ->where('transaction_date', '>=', $startDate)
+                ->sum('amount');
 
-        $priorExpenses = (float) Transaction::where('type', 'expense')
-            ->where('status', 'confirmed')
-            ->where('transaction_date', '<', $startDate)
-            ->sum('amount');
+        $openingBalance = $bankNow - $netSinceStart;
 
-        $priorMemberDisbursements = (float) Transaction::where('type', 'member_disbursement')
-            ->where('status', 'confirmed')
-            ->where('transaction_date', '<', $startDate)
-            ->sum('amount');
-
-        $openingBalance = $totalCapital + $priorCollections - $priorDisbursements - $priorExpenses - $priorMemberDisbursements;
-
-        // Transacciones del período agrupadas por día
+        // Transacciones del período agrupadas por día (sólo cash)
         $transactions = Transaction::where('status', 'confirmed')
+            ->whereIn('type', array_merge(['collection'], $cashflowOutTypes))
             ->whereBetween('transaction_date', [$startDate, $lastDate])
             ->selectRaw('DATE(transaction_date) as tx_date, type, SUM(amount) as total')
             ->groupBy('tx_date', 'type')
