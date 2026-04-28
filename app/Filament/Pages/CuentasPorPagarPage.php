@@ -41,7 +41,7 @@ class CuentasPorPagarPage extends Page implements HasTable
         return $table
             ->query(
                 Financing::query()
-                    ->where('status', 'solicited')
+                    ->whereIn('status', ['solicited', 'partially_disbursed'])
                     ->orderBy('request_date')
             )
             ->columns([
@@ -52,6 +52,20 @@ class CuentasPorPagarPage extends Page implements HasTable
                     ->copyable()
                     ->fontFamily('mono')
                     ->toggleable(),
+
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'solicited'           => 'warning',
+                        'partially_disbursed' => 'info',
+                        default               => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'solicited'           => 'Solicitado',
+                        'partially_disbursed' => 'En partidas',
+                        default               => $state,
+                    }),
 
                 TextColumn::make('company.name')
                     ->label('Compañía')
@@ -77,7 +91,14 @@ class CuentasPorPagarPage extends Page implements HasTable
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('transfer_amount')
-                    ->label('Neto a Desembolsar')
+                    ->label('Neto Total')
+                    ->money('DOP', locale: 'es_DO')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('pending_disbursement')
+                    ->label('Pendiente Desembolso')
+                    ->state(fn (Financing $record): float => $record->remainingToDisburse())
                     ->money('DOP', locale: 'es_DO')
                     ->sortable()
                     ->toggleable(),

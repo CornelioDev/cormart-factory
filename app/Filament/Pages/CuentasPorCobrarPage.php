@@ -56,9 +56,9 @@ class CuentasPorCobrarPage extends Page implements HasTable
         $companyId = $user->hasRole('company_user') ? $user->company_id : null;
 
         $query = Financing::query()
-            ->whereIn('status', ['disbursed', 'partially_collected'])
+            ->whereIn('status', ['partially_disbursed', 'disbursed', 'partially_collected'])
             ->when($companyId, fn (Builder $q) => $q->where('company_id', $companyId))
-            ->orderBy('due_date');
+            ->orderByRaw('due_date IS NULL, due_date');
 
         return $table
             ->query($query)
@@ -111,8 +111,9 @@ class CuentasPorCobrarPage extends Page implements HasTable
                 TextColumn::make('due_date')
                     ->label('Vencimiento')
                     ->date('d M Y')
+                    ->placeholder('Pendiente partidas')
                     ->color(fn (Financing $record): string =>
-                        $record->due_date->isPast() ? 'danger' : 'success'
+                        $record->due_date?->isPast() ? 'danger' : 'success'
                     )
                     ->sortable()
                     ->toggleable(),
@@ -123,7 +124,7 @@ class CuentasPorCobrarPage extends Page implements HasTable
                         (int) $record->disbursed_at?->diffInDays(now())
                     )
                     ->color(fn (Financing $record): string =>
-                        $record->due_date->isPast() ? 'danger' : 'gray'
+                        $record->due_date?->isPast() ? 'danger' : 'gray'
                     )
                     ->toggleable(isToggledHiddenByDefault: true),
 
