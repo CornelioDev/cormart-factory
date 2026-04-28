@@ -45,4 +45,7 @@ jobs:
           php artisan migrate --force
           php artisan optimize:clear
           php artisan optimize
+          # Reset OPcache del pool FPM (CLI no lo alcanza — son instancias separadas)
+          echo '<?php opcache_reset(); echo "ok"; @unlink(__FILE__);' > public/_opcache_reset.php
+          curl -fsS https://factory.corneliodev.com/_opcache_reset.php || echo "warn: opcache reset via web falló"
           EOF
