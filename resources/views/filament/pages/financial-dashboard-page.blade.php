@@ -168,8 +168,8 @@
             </div>
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Saldo Estimado Banco</div>
-                <div class="fd-kpi-value fd-color-primary">RD$ {{ number_format($snapshot['estimated_bank'], 2, '.', ',') }}</div>
-                <div class="fd-kpi-desc fd-muted">Total esperado en cuenta bancaria</div>
+                <div class="fd-kpi-value {{ $snapshot['estimated_bank'] >= 0 ? 'fd-color-primary' : 'fd-color-danger' }}">RD$ {{ number_format($snapshot['estimated_bank'], 2, '.', ',') }}</div>
+                <div class="fd-kpi-desc fd-muted">Capital disponible + ganancias del fondo</div>
             </div>
             <div class="fd-kpi">
                 <div class="fd-kpi-label fd-muted">Ganancias Acumuladas</div>
