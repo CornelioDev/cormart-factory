@@ -115,9 +115,11 @@ class FinancialDashboardPage extends Page
             ];
         }
 
-        // KPIs operativos
-        $capitalInStreet = (float) Financing::whereIn('status', ['disbursed', 'partially_collected'])
-            ->selectRaw('SUM(transfer_amount - collected_amount) as pending')
+        // KPIs operativos. Estados con capital del fondo afuera (físicamente desembolsado).
+        $outstandingStatuses = ['partially_disbursed', 'disbursed', 'partially_collected'];
+
+        $capitalInStreet = (float) Financing::whereIn('status', $outstandingStatuses)
+            ->selectRaw('SUM(disbursed_amount - collected_amount) as pending')
             ->value('pending');
         $this->snapshot['capital_in_street'] = $capitalInStreet;
 
@@ -150,7 +152,7 @@ class FinancialDashboardPage extends Page
 
         // % de Cobro global: cobrados / (cobrados + activos en calle)
         $globalCollected = Financing::where('status', 'collected')->count();
-        $globalActive    = Financing::whereIn('status', ['disbursed', 'partially_collected'])->count();
+        $globalActive    = Financing::whereIn('status', $outstandingStatuses)->count();
         $globalTotal     = $globalCollected + $globalActive;
         $this->snapshot['collection_pct']    = $globalTotal > 0
             ? round($globalCollected / $globalTotal * 100, 1)
@@ -171,15 +173,17 @@ class FinancialDashboardPage extends Page
             ? round(($accumulatedProfit / $totalCapital) * 100, 2)
             : 0;
 
-        // CxC: Cuentas por Cobrar
-        $cxcBase = Financing::whereIn('status', ['disbursed', 'partially_collected']);
-        $cxcTotal = (float) $cxcBase->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
-        $cxcCount = Financing::whereIn('status', ['disbursed', 'partially_collected'])->count();
-        $cxcOverdueCount = Financing::whereIn('status', ['disbursed', 'partially_collected'])
+        // CxC: Cuentas por Cobrar. El cliente debe lo que ha recibido físicamente menos
+        // lo cobrado (disbursed_amount - collected_amount). Los partially_disbursed no
+        // tienen due_date, así que nunca aparecen como vencidos.
+        $cxcTotal = (float) Financing::whereIn('status', $outstandingStatuses)
+            ->selectRaw('SUM(disbursed_amount - collected_amount) as pending')->value('pending');
+        $cxcCount = Financing::whereIn('status', $outstandingStatuses)->count();
+        $cxcOverdueCount = Financing::whereIn('status', $outstandingStatuses)
             ->where('due_date', '<', Carbon::today())->count();
-        $cxcOverdueTotal = (float) Financing::whereIn('status', ['disbursed', 'partially_collected'])
+        $cxcOverdueTotal = (float) Financing::whereIn('status', $outstandingStatuses)
             ->where('due_date', '<', Carbon::today())
-            ->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
+            ->selectRaw('SUM(disbursed_amount - collected_amount) as pending')->value('pending');
 
         $this->snapshot['cxc_total']         = $cxcTotal;
         $this->snapshot['cxc_count']         = $cxcCount;
@@ -188,9 +192,15 @@ class FinancialDashboardPage extends Page
         $this->snapshot['cxc_overdue']       = $cxcOverdueTotal;
         $this->snapshot['cxc_overdue_count'] = $cxcOverdueCount;
 
-        // CxP: Cuentas por Pagar (solicited = pendientes de desembolso)
-        $this->snapshot['cxp_total']  = (float) Financing::where('status', 'solicited')->sum('transfer_amount');
-        $this->snapshot['cxp_count']  = Financing::where('status', 'solicited')->count();
+        // CxP: Cuentas por Pagar. Incluye solicitudes nuevas (solicited) y financiamientos
+        // con partidas pendientes de desembolso (partially_disbursed). El total a desembolsar
+        // es lo que falta del transfer_amount, no el transfer completo.
+        $pendingDisbursementStatuses = ['solicited', 'partially_disbursed'];
+
+        $this->snapshot['cxp_total']  = (float) Financing::whereIn('status', $pendingDisbursementStatuses)
+            ->selectRaw('COALESCE(SUM(transfer_amount - disbursed_amount), 0) as pending')
+            ->value('pending');
+        $this->snapshot['cxp_count']  = Financing::whereIn('status', $pendingDisbursementStatuses)->count();
         $this->snapshot['cxp_amount'] = (float) Financing::where('status', 'solicited')->sum('amount');
 
         // Margen de solvencia: banco estimado vs ganancias comprometidas pendientes de pago

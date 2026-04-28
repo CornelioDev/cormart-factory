@@ -18,13 +18,13 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
         $isCompanyUser = $user->hasRole('company_user');
         $companyId     = $isCompanyUser ? $user->company_id : null;
 
-        $base = fn () => Financing::whereIn('status', ['disbursed', 'partially_collected'])
+        $base = fn () => Financing::whereIn('status', ['partially_disbursed', 'disbursed', 'partially_collected'])
             ->when($companyId, fn ($q) => $q->where('company_id', $companyId));
 
-        $total        = (float) $base()->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
+        $total        = (float) $base()->selectRaw('SUM(disbursed_amount - collected_amount) as pending')->value('pending');
         $count        = $base()->count();
         $overdueCount = $base()->where('due_date', '<', Carbon::today())->count();
-        $overdueTotal = (float) $base()->where('due_date', '<', Carbon::today())->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
+        $overdueTotal = (float) $base()->where('due_date', '<', Carbon::today())->selectRaw('SUM(disbursed_amount - collected_amount) as pending')->value('pending');
         $alDia        = $total - $overdueTotal;
         $alDiaCount   = $count - $overdueCount;
 
