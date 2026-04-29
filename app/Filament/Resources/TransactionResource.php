@@ -148,7 +148,7 @@ class TransactionResource extends Resource
 
                     $statuses = $type === 'disbursement'
                         ? ['solicited', 'partially_disbursed']
-                        : ['disbursed', 'partially_collected'];
+                        : ['partially_disbursed', 'disbursed', 'partially_collected'];
 
                     $query = Financing::query()
                         ->where('company_id', $companyId)
