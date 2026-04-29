@@ -156,9 +156,18 @@ class TransactionService
             $newDisbursed   = round((float) $f->disbursed_amount + $paymentForThis, 2);
             $fullyDisbursed = $newDisbursed + 0.001 >= (float) $f->transfer_amount;
 
+            // Si al completar el desembolso ya hay cobros parciales acumulados
+            // (porque el cliente abonó mientras estaba partially_disbursed), el
+            // estado correcto es partially_collected, no disbursed.
+            $newStatus = match (true) {
+                ! $fullyDisbursed                => 'partially_disbursed',
+                (float) $f->collected_amount > 0 => 'partially_collected',
+                default                          => 'disbursed',
+            };
+
             $updates = [
                 'disbursed_amount' => $fullyDisbursed ? (float) $f->transfer_amount : $newDisbursed,
-                'status'           => $fullyDisbursed ? 'disbursed' : 'partially_disbursed',
+                'status'           => $newStatus,
             ];
 
             if ($isFirstPartida) {
@@ -301,14 +310,23 @@ class TransactionService
             $totalCapitalRecovered += $toCapital;
             $totalLateFeeCollected += $toLateFee;
 
-            $newCollected = round((float) $f->collected_amount + $toCapital, 2);
-            $isFullyPaid  = $newCollected >= (float) $f->amount;
+            $newCollected     = round((float) $f->collected_amount + $toCapital, 2);
+            $isFullyPaid      = $newCollected >= (float) $f->amount;
+            $isFullyDisbursed = (float) $f->disbursed_amount + 0.001 >= (float) $f->transfer_amount;
+
+            // Si el financiamiento aún tiene partidas pendientes de desembolso,
+            // mantener partially_disbursed aunque ya haya cobros parciales.
+            $newStatus = match (true) {
+                $isFullyPaid      => 'collected',
+                $isFullyDisbursed => 'partially_collected',
+                default           => 'partially_disbursed',
+            };
 
             $f->update([
                 'collected_amount'  => min($newCollected, (float) $f->amount),
                 'late_fee_amount'   => round((float) $f->late_fee_amount + $toLateFee, 2),
                 'late_fee_pending'  => round($lateFee - $toLateFee, 2),
-                'status'            => $isFullyPaid ? 'collected' : 'partially_collected',
+                'status'            => $newStatus,
                 'collected_at'      => $isFullyPaid ? $date : null,
                 'collection_period' => $isFullyPaid ? $date->format('Y-m') : null,
             ]);
