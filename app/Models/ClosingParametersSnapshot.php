@@ -13,10 +13,6 @@ class ClosingParametersSnapshot extends Model
         'value',
     ];
 
-    protected $casts = [
-        'value' => 'decimal:4',
-    ];
-
     protected $table = 'closing_parameters_snapshot';
 
     public function monthlyClosing(): BelongsTo
