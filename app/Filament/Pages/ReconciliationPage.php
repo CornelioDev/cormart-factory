@@ -99,11 +99,19 @@ class ReconciliationPage extends Page
             ->where('status', 'confirmed')
             ->sum('amount');
 
-        $totalDistributions = (float) Transaction::where('type', 'earning_distribution')
+        $totalMemberDisbursements = (float) Transaction::where('type', 'member_disbursement')
             ->where('status', 'confirmed')
             ->sum('amount');
 
-        $expectedFund = round($totalCommissions + $totalLateFeeCollected - $totalExpenses - $totalDistributions, 2);
+        $totalEarningsToCapital = (float) Transaction::where('type', 'earnings_to_capital')
+            ->where('status', 'confirmed')
+            ->sum('amount');
+
+        $expectedFund = round(
+            $totalCommissions + $totalLateFeeCollected
+            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital,
+            2
+        );
         $actualFund = (float) FundAccount::instance()->balance;
 
         // Check 3: Financing Integrity
@@ -138,7 +146,7 @@ class ReconciliationPage extends Page
                 'actual'   => $actualFund,
                 'diff'     => round($expectedFund - $actualFund, 2),
                 'pass'     => abs($expectedFund - $actualFund) < 0.01,
-                'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Distribuciones ({$totalDistributions})",
+                'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital})",
             ],
             [
                 'name'     => 'Integridad de Financiamientos',
