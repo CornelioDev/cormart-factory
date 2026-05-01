@@ -217,9 +217,9 @@ class TransactionService
     }
 
     /**
-     * Auto-genera un gasto de impuesto (tax_pct) asociado a un desembolso.
+     * Auto-genera un gasto de impuesto (tax_pct) asociado a un desembolso o retiro.
      */
-    private function createTaxExpense(Transaction $disbursement, array $disbursementData, bool $debitFund = true): void
+    private function createTaxExpense(Transaction $disbursement, array $disbursementData): void
     {
         $taxPct = (float) Parameter::where('key', 'tax_pct')->value('value');
 
@@ -246,10 +246,7 @@ class TransactionService
             'confirmed_at'       => now(),
         ]);
 
-        // Debitar gasto del fondo (omitir si el cierre mensual ya pre-reservó el impuesto)
-        if ($debitFund) {
-            (new FundAccountService())->debit($taxAmount);
-        }
+        (new FundAccountService())->debit($taxAmount);
     }
 
     /**
@@ -395,12 +392,15 @@ class TransactionService
                 'confirmed_at'       => now(),
             ]);
 
-            // Auto-generar gasto de impuesto (el fondo ya fue debitado en el cierre mensual)
+            // El cash sale del banco al fondo en este momento — ese es el evento real.
+            (new FundAccountService())->debit($amount);
+
+            // Impuesto a DGII sobre el retiro: se registra como gasto y se debita del fondo.
             $this->createTaxExpense($transaction, [
                 'bank'             => $data['bank'],
                 'transaction_date' => $data['transaction_date'],
                 'registered_by'    => auth()->id(),
-            ], debitFund: false);
+            ]);
 
             return $transaction;
         });
@@ -445,6 +445,10 @@ class TransactionService
 
             $member->increment('contribution', $amount);
             (new FundMemberService())->recalculateAllPercentages();
+
+            // Reclasificación: las ganancias del miembro pasan a ser parte de su capital.
+            // El cash sigue en el banco; solo cambia su "dueño" entre los ledgers internos.
+            (new FundAccountService())->debit($amount);
             (new CapitalAccountService())->credit($amount);
 
             return $transaction;

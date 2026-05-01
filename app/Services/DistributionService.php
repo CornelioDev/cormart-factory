@@ -156,10 +156,13 @@ class DistributionService
                 ]);
             }
 
-            // Crear transacciones de distribución por miembro y debitar del fondo
+            // Crear transacciones de distribución por miembro.
+            // Nota: las distribuciones son asientos contables internos que asignan
+            // ganancias acumuladas del fondo a miembros específicos. NO mueven cash
+            // del banco — el cash sale solo cuando el miembro retira (member_disbursement)
+            // o capitaliza sus ganancias (earnings_to_capital). El impuesto a DGII
+            // se registra como gasto en el momento real del retiro.
             $transactionService = new TransactionService();
-            $fundAccountService = new FundAccountService();
-            $totalDistributed = 0;
 
             foreach ($data['distributions'] as $dist) {
                 if ($dist['total_amount'] > 0) {
@@ -168,14 +171,7 @@ class DistributionService
                         $dist['total_amount'],
                         $period,
                     );
-                    $totalDistributed += $dist['total_amount'];
                 }
-            }
-
-            if ($totalDistributed > 0) {
-                $taxPct      = (float) ($data['parameters']['tax_pct'] ?? 0);
-                $taxReserve  = $taxPct > 0 ? round($totalDistributed * ($taxPct / 100), 2) : 0;
-                $fundAccountService->debit($totalDistributed + $taxReserve);
             }
 
             return $closing;

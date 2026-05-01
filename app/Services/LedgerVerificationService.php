@@ -108,11 +108,19 @@ class LedgerVerificationService
             ->where('status', 'confirmed')
             ->sum('amount');
 
-        $totalDistributions = (float) Transaction::where('type', 'earning_distribution')
+        $totalMemberDisbursements = (float) Transaction::where('type', 'member_disbursement')
             ->where('status', 'confirmed')
             ->sum('amount');
 
-        $expected = round($totalCommissions + $totalLateFeeCollected - $totalExpenses - $totalDistributions, 2);
+        $totalEarningsToCapital = (float) Transaction::where('type', 'earnings_to_capital')
+            ->where('status', 'confirmed')
+            ->sum('amount');
+
+        $expected = round(
+            $totalCommissions + $totalLateFeeCollected
+            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital,
+            2
+        );
         $actual = (float) FundAccount::instance()->balance;
 
         return [
@@ -121,7 +129,7 @@ class LedgerVerificationService
             'actual'   => $actual,
             'diff'     => round($expected - $actual, 2),
             'pass'     => abs($expected - $actual) < 0.01,
-            'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Distribuciones ({$totalDistributions})",
+            'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital})",
         ];
     }
 }
