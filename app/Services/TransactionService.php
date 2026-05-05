@@ -285,15 +285,22 @@ class TransactionService
         $totalCapitalRecovered = 0;
         $totalLateFeeCollected = 0;
 
-        $financings->each(function (Financing $f) use ($date, $transactionAmount, $financings, $financingService, &$totalCapitalRecovered, &$totalLateFeeCollected) {
-            $totalRemaining = $financings->sum(fn ($fin) => $fin->remainingBalance());
-            $paymentForThis = $financings->count() === 1
+        // Snapshot del balance pendiente ANTES de mutar los financiamientos.
+        // Si se calcula dentro del loop, las iteraciones posteriores ven balances
+        // ya descontados y el split proporcional sobre-asigna al último financiamiento.
+        $totalRemaining = $financings->sum(fn (Financing $fin) => $fin->remainingBalance());
+        $payments = $financings->mapWithKeys(fn (Financing $fin) => [
+            $fin->id => $financings->count() === 1
                 ? $transactionAmount
-                : round($transactionAmount * ($f->remainingBalance() / max($totalRemaining, 0.01)), 2);
+                : round($transactionAmount * ($fin->remainingBalance() / max($totalRemaining, 0.01)), 2),
+        ]);
 
+        $financings->each(function (Financing $f) use ($date, $payments, $financingService, &$totalCapitalRecovered, &$totalLateFeeCollected) {
             $balance = $f->remainingBalance();
             $lateFee = $financingService->calculateLateFee($f, $date);
             $totalOwed = $balance + $lateFee;
+            // Cap defensivo: nunca asignar más de lo que el financiamiento debe.
+            $paymentForThis = min($payments[$f->id], $totalOwed);
 
             if ($lateFee > 0 && $totalOwed > 0) {
                 // Distribución proporcional entre capital y mora
