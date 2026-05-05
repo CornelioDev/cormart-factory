@@ -5,6 +5,7 @@ namespace App\Filament\Resources\TransactionResource\Pages;
 use App\Filament\Resources\TransactionResource;
 use App\Services\TransactionService;
 use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewTransaction extends ViewRecord
@@ -26,7 +27,18 @@ class ViewTransaction extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Confirmar cobro')
                 ->modalDescription('¿Confirmas que este pago fue recibido y verificado?')
-                ->action(fn () => (new TransactionService())->confirm($this->record)),
+                ->action(function (): void {
+                    try {
+                        (new TransactionService())->confirm($this->record);
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->title('No se pudo confirmar la transacción')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->persistent()
+                            ->send();
+                    }
+                }),
         ];
     }
 }

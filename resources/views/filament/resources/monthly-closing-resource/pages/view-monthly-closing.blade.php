@@ -67,23 +67,23 @@
         <div style="display:grid;grid-template-columns:repeat(5,1fr)">
             <div class="closing-grid-border" style="padding:16px 20px">
                 <div class="closing-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Comisiones</div>
-                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format($record->total_commissions, 2, '.', ',') }}</div>
+                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format((float) $record->total_commissions, 2, '.', ',') }}</div>
             </div>
             <div class="closing-grid-border" style="padding:16px 20px">
                 <div class="closing-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Fijo Pagado</div>
-                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format($record->total_fixed, 2, '.', ',') }}</div>
+                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format((float) $record->total_fixed, 2, '.', ',') }}</div>
             </div>
             <div class="closing-grid-border" style="padding:16px 20px">
                 <div class="closing-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Reserva</div>
-                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format($record->reserve, 2, '.', ',') }}</div>
+                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format((float) $record->reserve, 2, '.', ',') }}</div>
             </div>
             <div class="closing-grid-border" style="padding:16px 20px">
                 <div class="closing-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Naturaleza</div>
-                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format($record->in_kind_payment, 2, '.', ',') }}</div>
+                <div class="closing-value" style="font-size:18px;font-weight:700">RD$ {{ number_format((float) $record->in_kind_payment, 2, '.', ',') }}</div>
             </div>
             <div style="padding:16px 20px">
                 <div class="closing-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Para Capital</div>
-                <div class="closing-accent" style="font-size:18px;font-weight:700">RD$ {{ number_format($record->available_for_capital, 2, '.', ',') }}</div>
+                <div class="closing-accent" style="font-size:18px;font-weight:700">RD$ {{ number_format((float) $record->available_for_capital, 2, '.', ',') }}</div>
             </div>
         </div>
     </div>
@@ -114,23 +114,23 @@
                             </div>
                         </td>
                         <td class="closing-muted" style="padding:12px;text-align:right">
-                            {{ $dist->fixed_amount > 0 ? 'RD$ ' . number_format($dist->fixed_amount, 2, '.', ',') : '—' }}
+                            {{ $dist->fixed_amount > 0 ? 'RD$ ' . number_format((float) $dist->fixed_amount, 2, '.', ',') : '—' }}
                         </td>
                         <td class="closing-muted" style="padding:12px;text-align:right">
-                            RD$ {{ number_format($dist->proportional_amount, 2, '.', ',') }}
+                            RD$ {{ number_format((float) $dist->proportional_amount, 2, '.', ',') }}
                         </td>
                         <td class="closing-value" style="padding:12px 20px;text-align:right;font-weight:700">
-                            RD$ {{ number_format($dist->total_amount, 2, '.', ',') }}
+                            RD$ {{ number_format((float) $dist->total_amount, 2, '.', ',') }}
                         </td>
                     </tr>
                     @endforeach
                     <tr class="closing-reserve-row">
                         <td colspan="3" class="closing-muted" style="padding:12px 20px;font-weight:600">Reserva del fondo</td>
-                        <td class="closing-value" style="padding:12px 20px;text-align:right;font-weight:700">RD$ {{ number_format($record->reserve, 2, '.', ',') }}</td>
+                        <td class="closing-value" style="padding:12px 20px;text-align:right;font-weight:700">RD$ {{ number_format((float) $record->reserve, 2, '.', ',') }}</td>
                     </tr>
                     <tr class="closing-total-row">
                         <td colspan="3" class="closing-value" style="padding:12px 20px;font-weight:700">Total</td>
-                        <td class="closing-total-value" style="padding:12px 20px;text-align:right;font-weight:700">RD$ {{ number_format($record->total_commissions, 2, '.', ',') }}</td>
+                        <td class="closing-total-value" style="padding:12px 20px;text-align:right;font-weight:700">RD$ {{ number_format((float) $record->total_commissions, 2, '.', ',') }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -158,7 +158,7 @@
                         @endswitch
                     </span>
                     <span class="closing-accent" style="font-size:13px;font-weight:700">
-                        {{ $param->key === 'default_term_days' ? number_format($param->value, 0) . ' días' : number_format($param->value, 2) . '%' }}
+                        {{ $param->key === 'default_term_days' ? number_format((float) $param->value, 0) . ' días' : number_format((float) $param->value, 2) . '%' }}
                     </span>
                 </div>
                 @endforeach

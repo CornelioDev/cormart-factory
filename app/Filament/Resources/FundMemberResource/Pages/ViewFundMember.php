@@ -191,14 +191,25 @@ class ViewFundMember extends ViewRecord
                 ->modalSubmitActionLabel('Desembolsar')
                 ->requiresConfirmation()
                 ->action(function (FundMember $record, array $data): void {
-                    (new TransactionService())->createMemberDisbursement([
-                        'fund_member_id'     => $record->id,
-                        'amount'             => (float) str_replace(',', '', $data['amount']),
-                        'bank'               => $data['bank'],
-                        'transaction_number' => $data['transaction_number'],
-                        'transaction_date'   => $data['transaction_date'],
-                        'notes'              => $data['notes'],
-                    ]);
+                    try {
+                        (new TransactionService())->createMemberDisbursement([
+                            'fund_member_id'     => $record->id,
+                            'amount'             => (float) str_replace(',', '', $data['amount']),
+                            'bank'               => $data['bank'],
+                            'transaction_number' => $data['transaction_number'],
+                            'transaction_date'   => $data['transaction_date'],
+                            'notes'              => $data['notes'],
+                        ]);
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->title('No se pudo registrar el desembolso')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->persistent()
+                            ->send();
+
+                        return;
+                    }
 
                     Notification::make()
                         ->title('Desembolso registrado')
@@ -259,12 +270,23 @@ class ViewFundMember extends ViewRecord
                 ->modalSubmitActionLabel('Capitalizar')
                 ->requiresConfirmation()
                 ->action(function (FundMember $record, array $data): void {
-                    (new TransactionService())->createEarningsToCapitalTransfer([
-                        'fund_member_id'   => $record->id,
-                        'amount'           => (float) str_replace(',', '', $data['amount']),
-                        'transaction_date' => $data['transaction_date'],
-                        'notes'            => $data['notes'],
-                    ]);
+                    try {
+                        (new TransactionService())->createEarningsToCapitalTransfer([
+                            'fund_member_id'   => $record->id,
+                            'amount'           => (float) str_replace(',', '', $data['amount']),
+                            'transaction_date' => $data['transaction_date'],
+                            'notes'            => $data['notes'],
+                        ]);
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->title('No se pudo capitalizar las ganancias')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->persistent()
+                            ->send();
+
+                        return;
+                    }
 
                     Notification::make()
                         ->title('Ganancias capitalizadas')

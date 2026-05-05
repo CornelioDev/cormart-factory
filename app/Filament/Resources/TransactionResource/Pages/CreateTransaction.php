@@ -4,7 +4,9 @@ namespace App\Filament\Resources\TransactionResource\Pages;
 
 use App\Filament\Resources\TransactionResource;
 use App\Services\TransactionService;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Exceptions\Halt;
 use Illuminate\Database\Eloquent\Model;
 
 class CreateTransaction extends CreateRecord
@@ -25,10 +27,21 @@ class CreateTransaction extends CreateRecord
             $data['company_id'] ??= $user->company_id;
         }
 
-        if (($data['type'] ?? null) === 'expense') {
-            return (new TransactionService())->createExpense($data);
-        }
+        try {
+            if (($data['type'] ?? null) === 'expense') {
+                return (new TransactionService())->createExpense($data);
+            }
 
-        return (new TransactionService())->create($data, $financingIds);
+            return (new TransactionService())->create($data, $financingIds);
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('No se pudo registrar la transacción')
+                ->body($e->getMessage())
+                ->danger()
+                ->persistent()
+                ->send();
+
+            throw new Halt();
+        }
     }
 }

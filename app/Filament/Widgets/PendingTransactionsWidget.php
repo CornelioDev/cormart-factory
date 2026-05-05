@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Filament\Resources\TransactionResource;
 use App\Models\Transaction;
 use App\Services\TransactionService;
+use Filament\Notifications\Notification;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -83,7 +84,16 @@ class PendingTransactionsWidget extends BaseWidget
                     ->modalHeading('Confirmar cobro')
                     ->modalDescription('¿Confirmas que este pago fue recibido y verificado?')
                     ->action(function (Transaction $record): void {
-                        (new TransactionService())->confirm($record);
+                        try {
+                            (new TransactionService())->confirm($record);
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('No se pudo confirmar la transacción')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        }
                     }),
             ])
             ->emptyStateHeading($isCompanyUser ? 'Sin pagos pendientes' : 'Sin cobros pendientes')
