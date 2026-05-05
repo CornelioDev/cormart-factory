@@ -20,6 +20,7 @@ use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ViewAction;
@@ -603,7 +604,16 @@ class TransactionResource extends Resource
                     ->modalHeading('Confirmar cobro')
                     ->modalDescription('¿Confirmas que este pago fue recibido y verificado?')
                     ->action(function (Transaction $record): void {
-                        (new TransactionService())->confirm($record);
+                        try {
+                            (new TransactionService())->confirm($record);
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('No se pudo confirmar la transacción')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        }
                     }),
             ]);
     }
