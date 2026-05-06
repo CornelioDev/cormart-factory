@@ -60,6 +60,11 @@ class ParameterSeeder extends Seeder
                 'value'       => 'America/Santo_Domingo',
                 'description' => 'Zona horaria del sistema',
             ],
+            [
+                'key'         => 'allow_fund_loan_to_capital',
+                'value'       => '0',
+                'description' => 'Permitir que el fondo preste cash al capital cuando un desembolso lo requiera (1 = sí, 0 = no)',
+            ],
         ];
 
         foreach ($parameters as $parameter) {

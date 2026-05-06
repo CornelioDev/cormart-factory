@@ -84,7 +84,16 @@ class LedgerVerificationService
         $totalCommissionRetained = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
             ->sum('commission');
 
-        $expected = round($totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained, 2);
+        $totalFundLoan = (float) Transaction::where('type', 'fund_loan_to_capital')
+            ->where('status', 'confirmed')->sum('amount');
+        $totalRepayment = (float) Transaction::where('type', 'capital_repayment_to_fund')
+            ->where('status', 'confirmed')->sum('amount');
+
+        $expected = round(
+            $totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained
+            + $totalFundLoan - $totalRepayment,
+            2
+        );
         $actual = (float) CapitalAccount::instance()->balance;
 
         return [
@@ -93,7 +102,7 @@ class LedgerVerificationService
             'actual'   => $actual,
             'diff'     => round($expected - $actual, 2),
             'pass'     => abs($expected - $actual) < 0.01,
-            'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained})",
+            'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained}) + Préstamo del fondo ({$totalFundLoan}) − Repago al fondo ({$totalRepayment})",
         ];
     }
 
@@ -116,9 +125,15 @@ class LedgerVerificationService
             ->where('status', 'confirmed')
             ->sum('amount');
 
+        $totalFundLoan = (float) Transaction::where('type', 'fund_loan_to_capital')
+            ->where('status', 'confirmed')->sum('amount');
+        $totalRepayment = (float) Transaction::where('type', 'capital_repayment_to_fund')
+            ->where('status', 'confirmed')->sum('amount');
+
         $expected = round(
             $totalCommissions + $totalLateFeeCollected
-            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital,
+            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital
+            - $totalFundLoan + $totalRepayment,
             2
         );
         $actual = (float) FundAccount::instance()->balance;
@@ -129,7 +144,7 @@ class LedgerVerificationService
             'actual'   => $actual,
             'diff'     => round($expected - $actual, 2),
             'pass'     => abs($expected - $actual) < 0.01,
-            'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital})",
+            'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital}) − Préstamo a capital ({$totalFundLoan}) + Repago desde capital ({$totalRepayment})",
         ];
     }
 }
