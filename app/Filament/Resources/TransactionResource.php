@@ -336,20 +336,24 @@ class TransactionResource extends Resource
                         ->label('Tipo')
                         ->badge()
                         ->color(fn (string $state): string => match ($state) {
-                            'disbursement'          => 'info',
-                            'collection'            => 'success',
-                            'expense'               => 'danger',
-                            'earning_distribution'  => 'success',
-                            'member_disbursement'   => 'warning',
-                            default                 => 'gray',
+                            'disbursement'              => 'info',
+                            'collection'                => 'success',
+                            'expense'                   => 'danger',
+                            'earning_distribution'      => 'success',
+                            'member_disbursement'       => 'warning',
+                            'fund_loan_to_capital'      => 'warning',
+                            'capital_repayment_to_fund' => 'primary',
+                            default                     => 'gray',
                         })
                         ->formatStateUsing(fn (string $state): string => match ($state) {
-                            'disbursement'          => 'Desembolso',
-                            'collection'            => 'Cobro',
-                            'expense'               => 'Gasto',
-                            'earning_distribution'  => 'Distribución',
-                            'member_disbursement'   => 'Desembolso a Miembro',
-                            default                 => $state,
+                            'disbursement'              => 'Desembolso',
+                            'collection'                => 'Cobro',
+                            'expense'                   => 'Gasto',
+                            'earning_distribution'      => 'Distribución',
+                            'member_disbursement'       => 'Desembolso a Miembro',
+                            'fund_loan_to_capital'      => 'Préstamo Interno (Fondo→Capital)',
+                            'capital_repayment_to_fund' => 'Repago al Fondo',
+                            default                     => $state,
                         }),
 
                     TextEntry::make('status')
@@ -511,20 +515,24 @@ class TransactionResource extends Resource
                     ->label('Tipo')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'disbursement'          => 'info',
-                        'collection'            => 'success',
-                        'expense'               => 'danger',
-                        'earning_distribution'  => 'success',
-                        'member_disbursement'   => 'warning',
-                        default                 => 'gray',
+                        'disbursement'              => 'info',
+                        'collection'                => 'success',
+                        'expense'                   => 'danger',
+                        'earning_distribution'      => 'success',
+                        'member_disbursement'       => 'warning',
+                        'fund_loan_to_capital'      => 'warning',
+                        'capital_repayment_to_fund' => 'primary',
+                        default                     => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'disbursement'          => 'Desembolso',
-                        'collection'            => 'Cobro',
-                        'expense'               => 'Gasto',
-                        'earning_distribution'  => 'Distribución',
-                        'member_disbursement'   => 'Desembolso a Miembro',
-                        default                 => $state,
+                        'disbursement'              => 'Desembolso',
+                        'collection'                => 'Cobro',
+                        'expense'                   => 'Gasto',
+                        'earning_distribution'      => 'Distribución',
+                        'member_disbursement'       => 'Desembolso a Miembro',
+                        'fund_loan_to_capital'      => 'Préstamo Interno',
+                        'capital_repayment_to_fund' => 'Repago al Fondo',
+                        default                     => $state,
                     })
                     ->toggleable(),
             ])
@@ -532,11 +540,13 @@ class TransactionResource extends Resource
                 SelectFilter::make('type')
                     ->label('Tipo')
                     ->options([
-                        'disbursement'          => 'Desembolso',
-                        'collection'            => 'Cobro',
-                        'expense'               => 'Gasto',
-                        'earning_distribution'  => 'Distribución',
-                        'member_disbursement'   => 'Desembolso a Miembro',
+                        'disbursement'              => 'Desembolso',
+                        'collection'                => 'Cobro',
+                        'expense'                   => 'Gasto',
+                        'earning_distribution'      => 'Distribución',
+                        'member_disbursement'       => 'Desembolso a Miembro',
+                        'fund_loan_to_capital'      => 'Préstamo Interno (Fondo→Capital)',
+                        'capital_repayment_to_fund' => 'Repago al Fondo',
                     ]),
 
                 SelectFilter::make('status')

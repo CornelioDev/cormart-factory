@@ -73,6 +73,19 @@ solicited → partially_disbursed → disbursed → partially_collected → coll
 ### Tipos de Transaction
 - `disbursement`: Fondo → Compañía. Se confirma automáticamente. Puede ser una partida parcial (1 solo financiamiento, monto explícito ≤ `remainingToDisburse`) o el desembolso completo de varios financiamientos.
 - `collection`: Deudor → Fondo. Puede ser cobro completo o abono parcial. Requiere confirmación de operator si lo crea un company_user.
+- `fund_loan_to_capital` (interno): el `FundAccount` presta cash al `CapitalAccount` cuando el capital no alcanza para un desembolso y el operador activó el toggle `use_fund_earnings`. No afecta el banco real, solo mueve cash entre ledgers.
+- `capital_repayment_to_fund` (interno): el `CapitalAccount` repone al `FundAccount` lo prestado, automáticamente con cada cobro hasta saldar la deuda. Prioritario sobre acreditar capital al miembro.
+
+### Préstamo interno Fondo → Capital
+
+Cuando el parámetro `allow_fund_loan_to_capital = 1` (configurable en Configuración → Parámetros) está activo y un desembolso supera el saldo de `CapitalAccount`, el sistema toma automáticamente cash del `FundAccount` (ganancias retenidas) hasta cubrir el faltante, siempre que el banco total (Capital + Fondo) cubra la operación más las ganancias ya comprometidas a miembros (`pendingEarnings`). Si el parámetro está apagado, los desembolsos que excedan el capital fallan con un mensaje sugiriendo activarlo.
+
+La deuda interna se trackea de forma derivada:
+```
+outstandingFundLoan = Σ amount(fund_loan_to_capital, confirmed) − Σ amount(capital_repayment_to_fund, confirmed)
+```
+
+Cada cobro confirmado liquida primero la deuda con el fondo (hasta el monto recuperado o hasta saldar) antes de incrementar el `CapitalAccount` neto. La mora sigue yendo íntegra al `FundAccount` y no participa en el repago.
 
 ---
 
@@ -146,6 +159,7 @@ Configurables desde el módulo Parámetros (super_admin). Cada cambio queda en h
 | `default_term_days` | 15 | Plazo predeterminado en días |
 | `due_alert_days` | 5 | Días de anticipación para alerta de vencimiento |
 | `alert_send_time` | 07:00 | Hora de envío de alertas diarias (HH:MM) |
+| `allow_fund_loan_to_capital` | 0 | Si es `1`, el fondo presta cash al capital cuando un desembolso no alcanza con CapitalAccount |
 
 ---
 
