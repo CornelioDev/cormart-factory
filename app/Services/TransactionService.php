@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\CapitalAccount;
 use App\Models\Financing;
+use App\Models\FundAccount;
 use App\Models\FundMember;
 use App\Models\Parameter;
 use App\Models\Supplier;
@@ -53,13 +55,17 @@ class TransactionService
                 $taxPct    = (float) Parameter::where('key', 'tax_pct')->value('value');
                 $taxAmount = $taxPct > 0 ? round($disbursementAmount * ($taxPct / 100), 2) : 0;
 
-                $capitalTotal = (float) \App\Models\FundMember::where('type', 'capital')->where('active', true)->sum('contribution');
-                $currentBank  = $capitalTotal
-                    + (float) Transaction::where('type', 'collection')->where('status', 'confirmed')->sum('amount')
-                    - (float) Transaction::where('type', 'disbursement')->where('status', 'confirmed')->sum('amount')
-                    - (float) Transaction::where('type', 'expense')->where('status', 'confirmed')->sum('amount')
-                    - (float) Transaction::where('type', 'member_disbursement')->where('status', 'confirmed')->sum('amount')
-                    - (float) Transaction::where('type', 'earnings_to_capital')->where('status', 'confirmed')->sum('amount');
+                $useFundEarnings = (string) Parameter::where('key', 'allow_fund_loan_to_capital')->value('value') === '1';
+
+                // Comisión retenida del primer desembolso de cada financiamiento. Sale del capital.
+                $commissionFirstTime = (float) $financings
+                    ->filter(fn (Financing $f) => $f->status === 'solicited')
+                    ->sum('commission');
+
+                $capitalBalance = (float) CapitalAccount::instance()->balance;
+                $fundBalance    = (float) FundAccount::instance()->balance;
+                $bank           = round($capitalBalance + $fundBalance, 2);
+                $bankAfter      = round($bank - $disbursementAmount - $taxAmount, 2);
 
                 $pendingEarnings = round(
                     (float) Transaction::where('type', 'earning_distribution')->where('status', 'confirmed')->sum('amount')
@@ -67,7 +73,15 @@ class TransactionService
                     2
                 );
 
-                $bankAfter = round($currentBank - $disbursementAmount - $taxAmount, 2);
+                if ($bankAfter < -0.001) {
+                    throw new \Exception(
+                        'El banco total no alcanza el desembolso. Capital RD$'
+                        . number_format($capitalBalance, 2, '.', ',') . ' + Fondo RD$'
+                        . number_format($fundBalance, 2, '.', ',') . ' = RD$'
+                        . number_format($bank, 2, '.', ',') . '. Requerido (con impuesto): RD$'
+                        . number_format($disbursementAmount + $taxAmount, 2, '.', ',') . '.'
+                    );
+                }
 
                 if ($pendingEarnings > 0 && $bankAfter < $pendingEarnings) {
                     throw new \Exception(
@@ -76,6 +90,33 @@ class TransactionService
                         . number_format($pendingEarnings, 2, '.', ',') . ').'
                         . ' Déficit: RD$' . number_format($pendingEarnings - $bankAfter, 2, '.', ',') . '.'
                     );
+                }
+
+                $requiredCapital = round($disbursementAmount + $commissionFirstTime, 2);
+
+                if ($capitalBalance + 0.001 < $requiredCapital) {
+                    if (! $useFundEarnings) {
+                        throw new \Exception(
+                            'Capital insuficiente para cubrir el desembolso. Capital disponible: RD$'
+                            . number_format($capitalBalance, 2, '.', ',') . ', requerido: RD$'
+                            . number_format($requiredCapital, 2, '.', ',')
+                            . '. Active el parámetro "Permitir préstamo del fondo al capital" en Configuración → Parámetros para usar las ganancias del fondo (RD$'
+                            . number_format($fundBalance, 2, '.', ',') . ' disponibles).'
+                        );
+                    }
+
+                    $shortfall = round($requiredCapital - $capitalBalance, 2);
+                    $loanAmount = round(min($shortfall, $fundBalance), 2);
+
+                    if ($loanAmount + 0.001 < $shortfall) {
+                        throw new \Exception(
+                            'El fondo no tiene suficientes ganancias para cubrir el faltante. Faltante: RD$'
+                            . number_format($shortfall, 2, '.', ',') . ', disponible en fondo: RD$'
+                            . number_format($fundBalance, 2, '.', ',') . '.'
+                        );
+                    }
+
+                    $data['_pending_fund_loan'] = $loanAmount;
                 }
 
                 $data['amount'] = $disbursementAmount;
@@ -90,6 +131,9 @@ class TransactionService
 
             // Garantizar status explícito en el modelo (el default de BD no se refleja en memoria)
             $data['status'] ??= 'pending';
+
+            $pendingFundLoan = (float) ($data['_pending_fund_loan'] ?? 0);
+            unset($data['_pending_fund_loan']);
 
             $transaction = Transaction::create($data);
             $transaction->financings()->sync($financingIds);
@@ -107,6 +151,12 @@ class TransactionService
 
             // Actualizar estado de los financiamientos
             if ($data['type'] === 'disbursement') {
+                // Préstamo interno del fondo al capital, si el toggle está activo y el capital no alcanza.
+                // Se ejecuta antes de aplicar el desembolso para que el débito de capital tenga fondos.
+                if ($pendingFundLoan > 0) {
+                    $this->createFundLoanToCapital($pendingFundLoan, $transaction);
+                }
+
                 $this->applyDisbursementToFinancings($transaction, $financings, $disbursementAmount, $isPartial ?? false);
 
                 // Auto-generar gasto de impuesto sobre el monto desembolsado
@@ -339,10 +389,81 @@ class TransactionService
         // Acreditar capital recuperado y mora al fondo
         if ($totalCapitalRecovered > 0) {
             (new CapitalAccountService())->credit($totalCapitalRecovered);
+
+            // Repago prioritario al fondo si hay deuda interna vigente.
+            $outstanding = $this->outstandingFundLoan();
+            if ($outstanding > 0) {
+                $repay = round(min($totalCapitalRecovered, $outstanding), 2);
+                if ($repay > 0) {
+                    $this->createCapitalRepaymentToFund($repay, $transaction);
+                }
+            }
         }
         if ($totalLateFeeCollected > 0) {
             (new FundAccountService())->credit($totalLateFeeCollected);
         }
+    }
+
+    /**
+     * Saldo vigente de la deuda interna del capital con el fondo.
+     */
+    public function outstandingFundLoan(): float
+    {
+        $loaned = (float) Transaction::where('type', 'fund_loan_to_capital')
+            ->where('status', 'confirmed')
+            ->sum('amount');
+
+        $repaid = (float) Transaction::where('type', 'capital_repayment_to_fund')
+            ->where('status', 'confirmed')
+            ->sum('amount');
+
+        return round($loaned - $repaid, 2);
+    }
+
+    /**
+     * Crea una transacción de préstamo interno: el fondo presta cash al capital
+     * para cubrir un desembolso. Mueve cash entre ledgers, no afecta el banco real.
+     */
+    private function createFundLoanToCapital(float $amount, Transaction $disbursement): Transaction
+    {
+        $loan = Transaction::create([
+            'type'               => 'fund_loan_to_capital',
+            'status'             => 'confirmed',
+            'amount'             => round($amount, 2),
+            'transaction_date'   => $disbursement->transaction_date,
+            'notes'              => "Préstamo del fondo al capital para desembolso {$disbursement->code}",
+            'registered_by'      => auth()->id() ?? $disbursement->registered_by,
+            'confirmed_by'       => auth()->id() ?? $disbursement->registered_by,
+            'confirmed_at'       => now(),
+        ]);
+
+        (new FundAccountService())->debit($amount);
+        (new CapitalAccountService())->credit($amount);
+
+        return $loan;
+    }
+
+    /**
+     * Crea una transacción de repago: el capital devuelve al fondo lo prestado,
+     * usando cash recuperado en un cobro. Mueve cash entre ledgers, no afecta el banco real.
+     */
+    private function createCapitalRepaymentToFund(float $amount, Transaction $collection): Transaction
+    {
+        $repayment = Transaction::create([
+            'type'               => 'capital_repayment_to_fund',
+            'status'             => 'confirmed',
+            'amount'             => round($amount, 2),
+            'transaction_date'   => $collection->transaction_date,
+            'notes'              => "Repago del capital al fondo desde cobro {$collection->code}",
+            'registered_by'      => auth()->id() ?? $collection->registered_by,
+            'confirmed_by'       => auth()->id() ?? $collection->registered_by,
+            'confirmed_at'       => now(),
+        ]);
+
+        (new CapitalAccountService())->debit($amount);
+        (new FundAccountService())->credit($amount);
+
+        return $repayment;
     }
 
     /**

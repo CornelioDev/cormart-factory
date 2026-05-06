@@ -7,6 +7,7 @@ use App\Services\ParameterService;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -47,6 +48,7 @@ class ParametrosPage extends Page implements HasForms
             'due_alert_days'    => (int)   ($params['due_alert_days']    ?? 5),
             'alert_send_time'   =>          $params['alert_send_time']   ?? '07:00',
             'timezone'          =>          $params['timezone']          ?? 'America/Santo_Domingo',
+            'allow_fund_loan_to_capital' => (string) ($params['allow_fund_loan_to_capital'] ?? '0') === '1',
         ]);
     }
 
@@ -148,6 +150,15 @@ class ParametrosPage extends Page implements HasForms
                             ->helperText('Porcentaje sobre saldo pendiente por cada 30 días de atraso.'),
                     ]),
 
+                Section::make('Tesorería')
+                    ->description('Reglas de uso del cash del fondo y el capital.')
+                    ->columns(1)
+                    ->schema([
+                        Toggle::make('allow_fund_loan_to_capital')
+                            ->label('Permitir préstamo del fondo al capital')
+                            ->helperText('Cuando esté activo, si un desembolso requiere más cash del que hay en CapitalAccount, el sistema tomará el faltante del FundAccount (ganancias retenidas), siempre que el banco total cubra la operación. La deuda se repone automáticamente con los próximos cobros.'),
+                    ]),
+
                 Section::make('Notificaciones')
                     ->description('Configuración de alertas automáticas por correo electrónico.')
                     ->columns(2)
@@ -180,9 +191,12 @@ class ParametrosPage extends Page implements HasForms
 
         // Parámetros que almacenan texto (no numéricos)
         $stringParams = ['alert_send_time', 'timezone'];
+        $boolParams   = ['allow_fund_loan_to_capital'];
 
         foreach ($values as $key => $value) {
-            if (in_array($key, $stringParams)) {
+            if (in_array($key, $boolParams)) {
+                $service->updateRaw($key, $value ? '1' : '0', $period, $userId);
+            } elseif (in_array($key, $stringParams)) {
                 $service->updateRaw($key, $value, $period, $userId);
             } else {
                 $service->update($key, (float) $value, $period, $userId);

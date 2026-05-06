@@ -87,7 +87,16 @@ class ReconciliationPage extends Page
         $totalCommissionRetained = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
             ->sum('commission');
 
-        $expectedCapital = round($totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained, 2);
+        $totalFundLoan = (float) Transaction::where('type', 'fund_loan_to_capital')
+            ->where('status', 'confirmed')->sum('amount');
+        $totalCapitalRepayment = (float) Transaction::where('type', 'capital_repayment_to_fund')
+            ->where('status', 'confirmed')->sum('amount');
+
+        $expectedCapital = round(
+            $totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained
+            + $totalFundLoan - $totalCapitalRepayment,
+            2
+        );
         $actualCapital = (float) CapitalAccount::instance()->balance;
 
         // Check 2: FundAccount
@@ -109,10 +118,12 @@ class ReconciliationPage extends Page
 
         $expectedFund = round(
             $totalCommissions + $totalLateFeeCollected
-            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital,
+            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital
+            - $totalFundLoan + $totalCapitalRepayment,
             2
         );
         $actualFund = (float) FundAccount::instance()->balance;
+        $outstandingFundLoan = round($totalFundLoan - $totalCapitalRepayment, 2);
 
         // Check 3: Financing Integrity
         $collectedOverAmount = Financing::whereRaw('collected_amount > amount')->count();
@@ -138,7 +149,7 @@ class ReconciliationPage extends Page
                 'actual'   => $actualCapital,
                 'diff'     => round($expectedCapital - $actualCapital, 2),
                 'pass'     => abs($expectedCapital - $actualCapital) < 0.01,
-                'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained})",
+                'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained}) + Préstamo del fondo ({$totalFundLoan}) − Repago al fondo ({$totalCapitalRepayment})",
             ],
             [
                 'name'     => 'Cuenta del Fondo',
@@ -146,7 +157,15 @@ class ReconciliationPage extends Page
                 'actual'   => $actualFund,
                 'diff'     => round($expectedFund - $actualFund, 2),
                 'pass'     => abs($expectedFund - $actualFund) < 0.01,
-                'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital})",
+                'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital}) − Préstamo a capital ({$totalFundLoan}) + Repago desde capital ({$totalCapitalRepayment})",
+            ],
+            [
+                'name'     => 'Préstamo Interno Vigente (Fondo→Capital)',
+                'expected' => 0,
+                'actual'   => $outstandingFundLoan,
+                'diff'     => $outstandingFundLoan,
+                'pass'     => true,
+                'detail'   => "Préstamos del fondo ({$totalFundLoan}) − Repagos al fondo ({$totalCapitalRepayment}). Saldo > 0 indica que el fondo tiene cash 'prestado' al capital, pendiente de reponer con cobros futuros.",
             ],
             [
                 'name'     => 'Integridad de Financiamientos',
