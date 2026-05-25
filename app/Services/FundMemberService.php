@@ -8,10 +8,10 @@ class FundMemberService
 {
     public function calculatePercentage(float $contribution): float
     {
+        // fund_percentage solo aplica a miembros de capital. Los in_kind híbridos
+        // reciben in_kind_payment + fixed_return, pero no proporcional capital.
         $totalCapital = (float) FundMember::where('active', true)
-            ->where(fn ($q) => $q->where('type', 'capital')
-                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
-            )
+            ->where('type', 'capital')
             ->sum('contribution');
 
         if ($totalCapital <= 0) {
@@ -24,27 +24,21 @@ class FundMemberService
     public function recalculateAllPercentages(): void
     {
         $eligible = FundMember::where('active', true)
-            ->where(fn ($q) => $q->where('type', 'capital')
-                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
-            )
+            ->where('type', 'capital')
             ->get();
 
         $totalCapital = (float) $eligible->sum('contribution');
 
-        if ($totalCapital <= 0) {
-            return;
-        }
-
         $eligible->each(function (FundMember $member) use ($totalCapital) {
             $member->updateQuietly([
-                'fund_percentage' => round(($member->contribution / $totalCapital) * 100, 4),
+                'fund_percentage' => $totalCapital > 0
+                    ? round(($member->contribution / $totalCapital) * 100, 4)
+                    : 0,
             ]);
         });
 
-        // Miembros inactivos o in_kind sin capital → 0%
-        FundMember::where(fn ($q) => $q->where('active', false)
-            ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', 0))
-        )
+        // Miembros inactivos o in_kind nunca tienen fund_percentage.
+        FundMember::where(fn ($q) => $q->where('active', false)->orWhere('type', 'in_kind'))
             ->where('fund_percentage', '>', 0)
             ->each(function (FundMember $member) {
                 $member->updateQuietly(['fund_percentage' => 0]);

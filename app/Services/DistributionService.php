@@ -25,9 +25,7 @@ class DistributionService
         [$year, $month] = explode('-', $period);
 
         $capitalMembers = FundMember::where('active', true)
-            ->where(fn ($q) => $q->where('type', 'capital')
-                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
-            )
+            ->where('type', 'capital')
             ->get();
 
         $inKindMember = FundMember::where('type', 'in_kind')
@@ -51,6 +49,13 @@ class DistributionService
             return round($member->contribution * ($fixedReturnPct / 100), 2);
         });
 
+        // Miembro in_kind híbrido (capitalizó ganancias vía earnings_to_capital) también
+        // recibe fixed_return sobre su contribution, pero NO participa del proporcional capital.
+        if ($inKindMember && $inKindMember->contribution > 0) {
+            $totalFixed += round($inKindMember->contribution * ($fixedReturnPct / 100), 2);
+        }
+        $totalFixed = round($totalFixed, 2);
+
         $netProfit        = round($baseEarnings - $totalFixed, 2);
         $reserve          = $netProfit > 0 ? round($netProfit * ($reservePct / 100), 2) : 0;
         $postReserve      = $netProfit > 0 ? round($netProfit - $reserve, 2) : 0;
@@ -66,7 +71,6 @@ class DistributionService
         );
 
         $memberDistributions = $capitalMembers
-            ->filter(fn ($m) => $m->type === 'capital')
             ->map(function ($member) use ($fixedReturnPct, $availableCapital) {
                 $fixed        = round($member->contribution * ($fixedReturnPct / 100), 2);
                 $proportional = round($availableCapital * ($member->fund_percentage / 100), 2);
@@ -81,16 +85,17 @@ class DistributionService
             })->toArray();
 
         if ($inKindMember) {
-            $inKindFixed        = round($inKindMember->contribution * ($fixedReturnPct / 100), 2);
-            $inKindProportional = round($availableCapital * ($inKindMember->fund_percentage / 100), 2);
+            $inKindFixed = $inKindMember->contribution > 0
+                ? round($inKindMember->contribution * ($fixedReturnPct / 100), 2)
+                : 0.0;
 
             $memberDistributions[] = [
                 'fund_member_id'      => $inKindMember->id,
                 'name'                => $inKindMember->name,
                 'type'                => $inKindMember->type,
                 'fixed_amount'        => $inKindFixed,
-                'proportional_amount' => round($inKindProportional + $inKindPayment, 2),
-                'total_amount'        => round($inKindFixed + $inKindProportional + $inKindPayment, 2),
+                'proportional_amount' => $inKindPayment,
+                'total_amount'        => round($inKindFixed + $inKindPayment, 2),
             ];
         }
 
