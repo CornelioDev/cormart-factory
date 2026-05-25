@@ -388,18 +388,18 @@ class DistributionServiceTest extends ServiceTestCase
 
     /**
      * Fixture híbrido:
-     *   memberA (capital) contribution = 100000, fund_percentage = 50%
-     *   inKind  (in_kind) contribution = 100000, fund_percentage = 50%
+     *   memberA (capital) contribution = 100000, fund_percentage = 100% (único capital)
+     *   inKind  (in_kind) contribution = 100000, fund_percentage = 0%   (in_kind nunca participa del proporcional)
      *   total_commissions = 15000
-     *   total_fixed = (100000 + 100000) × 0.03 = 6000
+     *   total_fixed = (100000 + 100000) × 0.03 = 6000  (inKind híbrido sí recibe fixed)
      *   net_profit = 15000 - 6000 = 9000
      *   reserve = 9000 × 0.20 = 1800
      *   post_reserve = 9000 - 1800 = 7200
      *   in_kind_payment = 7200 × 0.50 = 3600
-     *   available = 7200 - 3600 = 3600
+     *   available_for_capital = 7200 - 3600 = 3600
      *
-     *   memberA: fixed = 3000, proportional = 3600 × 50% = 1800, total = 4800
-     *   inKind:  fixed = 3000, proportional = 3600 × 50% = 1800, in_kind = 3600, total = 8400
+     *   memberA: fixed = 3000, proportional = 3600 × 100% = 3600, total = 6600
+     *   inKind:  fixed = 3000, in_kind_payment = 3600, total = 6600
      *   diff = 15000 - (6000 + 1800 + 3600 + 3600) = 0
      */
     private function createHybridMembers(): array
@@ -408,14 +408,14 @@ class DistributionServiceTest extends ServiceTestCase
             'name'            => 'Capital A',
             'type'            => 'capital',
             'contribution'    => 100000.00,
-            'fund_percentage' => 50.0000,
+            'fund_percentage' => 100.0000,
         ]);
 
         $inKind = FundMember::factory()->create([
             'name'            => 'In Kind Hybrid',
             'type'            => 'in_kind',
             'contribution'    => 100000.00,
-            'fund_percentage' => 50.0000,
+            'fund_percentage' => 0.0000,
         ]);
 
         return [$memberA, $inKind];
@@ -433,7 +433,7 @@ class DistributionServiceTest extends ServiceTestCase
         $this->assertEquals(3000.00, (float) $inKindDist['fixed_amount']); // 100000 × 3%
     }
 
-    public function test_in_kind_with_capital_receives_proportional_share(): void
+    public function test_in_kind_with_capital_does_not_share_in_available_for_capital(): void
     {
         $this->createHybridMembers();
         $this->createFinancingsForPeriod(3, 5000.00);
@@ -442,11 +442,25 @@ class DistributionServiceTest extends ServiceTestCase
 
         $inKindDist = collect($result['distributions'])->firstWhere('type', 'in_kind');
 
-        // proportional = 3600 × 50% = 1800, plus in_kind_payment = 3600 → total proportional = 5400
-        $this->assertEquals(5400.00, (float) $inKindDist['proportional_amount']);
+        // proportional_amount = solo in_kind_payment (3600), NO incluye porción de available_for_capital
+        $this->assertEquals(3600.00, (float) $inKindDist['proportional_amount']);
     }
 
-    public function test_in_kind_with_capital_total_includes_all_three_components(): void
+    public function test_capital_member_receives_full_available_when_in_kind_is_hybrid(): void
+    {
+        $this->createHybridMembers();
+        $this->createFinancingsForPeriod(3, 5000.00);
+
+        $result = $this->service->calculate($this->period);
+
+        $capitalDist = collect($result['distributions'])->firstWhere('type', 'capital');
+
+        // El único miembro capital recibe el 100% de available_for_capital (3600)
+        $this->assertEquals(3600.00, (float) $capitalDist['proportional_amount']);
+        $this->assertEquals(6600.00, (float) $capitalDist['total_amount']); // 3000 fixed + 3600
+    }
+
+    public function test_in_kind_with_capital_total_is_fixed_plus_in_kind_payment(): void
     {
         $this->createHybridMembers();
         $this->createFinancingsForPeriod(3, 5000.00);
@@ -455,8 +469,8 @@ class DistributionServiceTest extends ServiceTestCase
 
         $inKindDist = collect($result['distributions'])->firstWhere('type', 'in_kind');
 
-        // fixed(3000) + proportional(1800) + in_kind(3600) = 8400
-        $this->assertEquals(8400.00, (float) $inKindDist['total_amount']);
+        // fixed(3000) + in_kind_payment(3600) = 6600 (sin double-dip)
+        $this->assertEquals(6600.00, (float) $inKindDist['total_amount']);
     }
 
     public function test_verification_diff_is_zero_with_hybrid_in_kind(): void

@@ -183,6 +183,15 @@ Verificación: comisiones = gastos + total_fijo + reserva + naturaleza + capital
 > La distribución se basa en desembolsos (`issue_period`), no en cobros (`collection_period`).
 > `collection_period` y `collected_at` siguen existiendo como métricas operativas de cobro.
 
+### Miembro in_kind híbrido
+
+Un miembro `in_kind` puede capitalizar sus distribuciones de ganancias vía `earnings_to_capital`. Cuando lo hace, su `contribution` deja de ser 0 pero su `type` sigue siendo `in_kind`. En los cierres siguientes recibe:
+- `in_kind_payment` (50% del post-reserva) — su beneficio natural como aportante en especie
+- `fixed_return` sobre su `contribution` capitalizada — porque su capital ya está trabajando en el fondo
+- **NO** participa en el reparto proporcional de `available_for_capital` — eso se reparte 100% entre los miembros de tipo `capital`
+
+El `fund_percentage` se calcula solo entre miembros de tipo `capital`; los in_kind híbridos siempre tienen `fund_percentage = 0`.
+
 Cada cierre persiste: `MonthlyClosing` + `ClosingDistribution` por miembro + `ClosingParametersSnapshot`.
 Un período solo puede cerrarse una vez.
 
