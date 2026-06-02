@@ -533,7 +533,7 @@ class TransactionService
             return $transaction;
         });
 
-        rescue(fn () => (new NotificationService())->memberDisbursementCreated($transaction, $member));
+        rescue(fn () => app(NotificationService::class)->memberDisbursementCreated($transaction, $member));
 
         return $transaction;
     }
@@ -634,7 +634,7 @@ class TransactionService
      */
     private function sendTransactionNotifications(Transaction $transaction, Collection $financings): void
     {
-        $notificationService = new NotificationService();
+        $notificationService = app(NotificationService::class);
 
         if ($transaction->type === 'disbursement') {
             rescue(fn () => $notificationService->financingDisbursed($transaction, $financings), report: true);

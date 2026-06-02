@@ -31,7 +31,9 @@ class TransactionServiceTest extends ServiceTestCase
         $this->company = Company::factory()->create();
         $this->client  = Client::factory()->for($this->company)->create();
 
+        FundAccount::query()->delete();
         FundAccount::create(['balance' => 0]);
+        CapitalAccount::query()->delete();
         CapitalAccount::create(['balance' => 500000]);
 
         $operatorRole   = $this->createRole('operator');

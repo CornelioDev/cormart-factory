@@ -28,7 +28,9 @@ class CreateTransactionTest extends ServiceTestCase
         $this->operator = User::factory()->create();
         $this->operator->assignRole($this->createRole('super_admin'));
 
+        FundAccount::query()->delete();
         FundAccount::create(['balance' => 0]);
+        CapitalAccount::query()->delete();
         CapitalAccount::create(['balance' => 500000]);
     }
 

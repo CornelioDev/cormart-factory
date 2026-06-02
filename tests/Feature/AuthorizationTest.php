@@ -136,6 +136,10 @@ class AuthorizationTest extends ServiceTestCase
     {
         $member = FundMember::factory()->create(['type' => 'capital', 'contribution' => 100000]);
 
+        $memberRole = $this->createRole('member');
+        \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'page_MemberAccountPage', 'guard_name' => 'web']);
+        $memberRole->givePermissionTo('page_MemberAccountPage');
+
         $memberUser = $this->createUserWithRole('member', ['fund_member_id' => $member->id]);
         $this->actingAs($memberUser);
         $this->assertTrue(MemberAccountPage::canAccess());
