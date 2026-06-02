@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             CompanySeeder::class,
             ClientSeeder::class,
             RolePermissionsSeeder::class,
+            NotificationSettingsSeeder::class,
         ]);
 
         // Seeders de desarrollo (nunca en producción)

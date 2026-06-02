@@ -1,7 +1,7 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
     "name": "cormart/factory",
-    "version": "1.9.0",
+    "version": "1.9.1",
     "type": "project",
     "description": "Sistema de gestión del Fondo Familiar de Factoring — Cormart Factory.",
     "keywords": ["laravel", "filament", "factoring"],

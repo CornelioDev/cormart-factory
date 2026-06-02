@@ -13,11 +13,16 @@ use App\Notifications\FinancingOverdue;
 use App\Notifications\FinancingRequested;
 use App\Notifications\MemberDisbursementRequested;
 use App\Notifications\PendingCollectionAwaitingConfirmation;
+use App\Support\NotificationType;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Notifications\Notification;
 
 class NotificationService
 {
+    public function __construct(
+        protected NotificationPreferenceService $preferences,
+    ) {}
+
     /**
      * Users con rol super_admin u operator.
      */
@@ -53,6 +58,20 @@ class NotificationService
         $users->each(fn (User $user) => rescue(fn () => $user->notify($notification), report: true));
     }
 
+    /**
+     * Aplica preferencias (global + per-user) antes de despachar.
+     */
+    protected function dispatch(EloquentCollection $users, string $key, Notification $notification): void
+    {
+        $recipients = $this->preferences->filterRecipients($users, $key);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $this->notifyUsers($recipients, $notification);
+    }
+
     // ── Métodos de conveniencia ─────────────────────────────────────────
 
     /**
@@ -60,8 +79,9 @@ class NotificationService
      */
     public function financingRequested(Financing $financing): void
     {
-        $this->notifyUsers(
+        $this->dispatch(
             $this->getAdminAndOperatorUsers(),
+            NotificationType::FINANCING_REQUESTED,
             new FinancingRequested($financing),
         );
     }
@@ -71,8 +91,9 @@ class NotificationService
      */
     public function pendingCollectionCreated(Transaction $transaction): void
     {
-        $this->notifyUsers(
+        $this->dispatch(
             $this->getAdminAndOperatorUsers(),
+            NotificationType::PENDING_COLLECTION_CREATED,
             new PendingCollectionAwaitingConfirmation($transaction),
         );
     }
@@ -88,8 +109,9 @@ class NotificationService
             return;
         }
 
-        $this->notifyUsers(
+        $this->dispatch(
             $this->getCompanyUsers($companyId),
+            NotificationType::FINANCING_DISBURSED,
             new FinancingDisbursed($transaction, $financings),
         );
     }
@@ -99,8 +121,9 @@ class NotificationService
      */
     public function memberDisbursementCreated(Transaction $transaction, FundMember $member): void
     {
-        $this->notifyUsers(
+        $this->dispatch(
             $this->getSuperAdminUsers(),
+            NotificationType::MEMBER_DISBURSEMENT_CREATED,
             new MemberDisbursementRequested($transaction, $member),
         );
     }
@@ -110,8 +133,9 @@ class NotificationService
      */
     public function accountingLedgerError(array $failedChecks): void
     {
-        $this->notifyUsers(
+        $this->dispatch(
             $this->getSuperAdminUsers(),
+            NotificationType::ACCOUNTING_LEDGER_ERROR,
             new AccountingLedgerError($failedChecks),
         );
     }
@@ -125,11 +149,19 @@ class NotificationService
 
         // Alertas a admin/operator con todos los financiamientos
         if ($approaching->isNotEmpty()) {
-            $this->notifyUsers($adminsOperators, new FinancingApproachingDueDate($approaching));
+            $this->dispatch(
+                $adminsOperators,
+                NotificationType::FINANCING_APPROACHING_DUE_DATE,
+                new FinancingApproachingDueDate($approaching),
+            );
         }
 
         if ($overdue->isNotEmpty()) {
-            $this->notifyUsers($adminsOperators, new FinancingOverdue($overdue));
+            $this->dispatch(
+                $adminsOperators,
+                NotificationType::FINANCING_OVERDUE,
+                new FinancingOverdue($overdue),
+            );
         }
 
         // Alertas a company_users filtradas por su compañía
@@ -151,11 +183,19 @@ class NotificationService
             $companyOverdue     = $overdueByCompany->get($companyId);
 
             if ($companyApproaching && $companyApproaching->isNotEmpty()) {
-                $this->notifyUsers($companyUsers, new FinancingApproachingDueDate($companyApproaching));
+                $this->dispatch(
+                    $companyUsers,
+                    NotificationType::FINANCING_APPROACHING_DUE_DATE,
+                    new FinancingApproachingDueDate($companyApproaching),
+                );
             }
 
             if ($companyOverdue && $companyOverdue->isNotEmpty()) {
-                $this->notifyUsers($companyUsers, new FinancingOverdue($companyOverdue));
+                $this->dispatch(
+                    $companyUsers,
+                    NotificationType::FINANCING_OVERDUE,
+                    new FinancingOverdue($companyOverdue),
+                );
             }
         }
     }
