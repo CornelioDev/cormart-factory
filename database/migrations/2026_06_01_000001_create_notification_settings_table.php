@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('notification_settings', function (Blueprint $table) {
-            $table->string('key')->primary();
+            $table->string('key', 191)->primary();
             $table->boolean('enabled')->default(true);
             $table->timestamps();
         });
