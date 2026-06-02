@@ -50,7 +50,7 @@ class SendFinancingAlerts extends Command
 
         $this->info("Próximos a vencer: {$approaching->count()} | Vencidos: {$overdue->count()}");
 
-        (new NotificationService())->sendDueDateAlerts($approaching, $overdue);
+        app(NotificationService::class)->sendDueDateAlerts($approaching, $overdue);
 
         $this->info('Alertas enviadas correctamente.');
 

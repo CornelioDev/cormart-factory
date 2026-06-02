@@ -22,7 +22,7 @@ class CreateFinancing extends CreateRecord
 
         $financing = parent::handleRecordCreation($data);
 
-        rescue(fn () => (new NotificationService())->financingRequested($financing));
+        rescue(fn () => app(NotificationService::class)->financingRequested($financing));
 
         return $financing;
     }

@@ -31,10 +31,11 @@ class FinancingFactory extends Factory
 
     public function disbursed(): static
     {
-        return $this->state(fn () => [
-            'status'       => 'disbursed',
-            'disbursed_at' => now(),
-            'issue_period' => now()->format('Y-m'),
+        return $this->state(fn (array $attrs) => [
+            'status'           => 'disbursed',
+            'disbursed_at'     => now(),
+            'issue_period'     => now()->format('Y-m'),
+            'disbursed_amount' => $attrs['transfer_amount'] ?? 95000.00,
         ]);
     }
 
@@ -42,12 +43,14 @@ class FinancingFactory extends Factory
     {
         $period = $period ?? now()->format('Y-m');
 
-        return $this->state(fn () => [
+        return $this->state(fn (array $attrs) => [
             'status'            => 'collected',
             'disbursed_at'      => now()->subDays(15),
             'issue_period'      => now()->subDays(15)->format('Y-m'),
             'collected_at'      => now(),
             'collection_period' => $period,
+            'disbursed_amount'  => $attrs['transfer_amount'] ?? 95000.00,
+            'collected_amount'  => $attrs['amount'] ?? 100000.00,
         ]);
     }
 

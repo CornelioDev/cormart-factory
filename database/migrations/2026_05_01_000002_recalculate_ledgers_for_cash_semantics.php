@@ -21,6 +21,16 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $capital = CapitalAccount::query()->first();
+        $fund    = FundAccount::query()->first();
+
+        // En BD recién migrada (tests con RefreshDatabase) los singletons aún no
+        // existen porque los crean seeders, no migraciones. No hay nada que
+        // recalcular en ese caso.
+        if (! $capital || ! $fund) {
+            return;
+        }
+
         $activeCapital = (float) FundMember::where('active', true)
             ->where(fn ($q) => $q->where('type', 'capital')
                 ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
@@ -51,9 +61,9 @@ return new class extends Migration
             2
         );
 
-        DB::transaction(function () use ($newCapital, $newFund) {
-            CapitalAccount::instance()->update(['balance' => $newCapital]);
-            FundAccount::instance()->update(['balance' => $newFund]);
+        DB::transaction(function () use ($capital, $fund, $newCapital, $newFund) {
+            $capital->update(['balance' => $newCapital]);
+            $fund->update(['balance' => $newFund]);
         });
     }
 
