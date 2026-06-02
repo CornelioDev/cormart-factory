@@ -37,7 +37,7 @@ class ParameterServiceTest extends ServiceTestCase
     {
         $all = $this->service->getAll();
 
-        $this->assertCount(10, $all);
+        $this->assertCount(11, $all);
         $this->assertArrayHasKey('commission_pct', $all);
         $this->assertArrayHasKey('fixed_return_pct', $all);
         $this->assertArrayHasKey('reserve_pct', $all);
@@ -48,6 +48,7 @@ class ParameterServiceTest extends ServiceTestCase
         $this->assertArrayHasKey('due_alert_days', $all);
         $this->assertArrayHasKey('alert_send_time', $all);
         $this->assertArrayHasKey('timezone', $all);
+        $this->assertArrayHasKey('allow_fund_loan_to_capital', $all);
     }
 
     public function test_update_changes_parameter_value(): void

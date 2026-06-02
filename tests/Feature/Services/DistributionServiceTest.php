@@ -37,7 +37,9 @@ class DistributionServiceTest extends ServiceTestCase
 
         $this->actingAs($this->user);
 
+        FundAccount::query()->delete();
         FundAccount::create(['balance' => 0]);
+        CapitalAccount::query()->delete();
         CapitalAccount::create(['balance' => 500000]);
     }
 

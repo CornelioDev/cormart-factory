@@ -48,7 +48,7 @@ class LedgerVerificationService
 
         Cache::put('ledger_error_notified', true, now()->addHour());
 
-        (new NotificationService())->accountingLedgerError($failed);
+        app(NotificationService::class)->accountingLedgerError($failed);
     }
 
     /**
@@ -62,7 +62,7 @@ class LedgerVerificationService
             return;
         }
 
-        (new NotificationService())->accountingLedgerError($failed);
+        app(NotificationService::class)->accountingLedgerError($failed);
     }
 
     private function checkCapitalAccount(): array

@@ -67,7 +67,9 @@ solicited → partially_disbursed → disbursed → partially_collected → coll
 - `collected_amount`: Campo decimal que acumula el monto cobrado. Al alcanzar `amount`, el status pasa a `collected`.
 - `collection_period` y `collected_at` se asignan solo al completar el cobro total (último abono).
 - `issue_period` y `disbursed_at` se fijan en la **primera partida** (transición `solicited → partially_disbursed`). La comisión completa se retiene al primer desembolso.
-- `due_date` se calcula al completarse el desembolso total (`fecha_última_partida + term_days`). Mientras el status sea `partially_disbursed`, `due_date` puede ser null.
+- `due_date` **no** se asigna automáticamente al desembolsar. Se fija recién al confirmar recepción (`confirmed_at + term_days`). Mientras `confirmed_at` sea null, `due_date` es null, no hay mora ni alertas de vencimiento.
+- `confirmed_at` y `confirmed_by` se setean vía la acción "Confirmar recepción" en la vista del financiamiento. Solo pueden confirmar **super_admin** o el **company_user** dueño de la compañía. La acción aparece cuando el status es `disbursed` o `partially_collected` y aún no hay confirmación.
+- El cobro **no** está bloqueado antes de la confirmación: un financiamiento desembolsado pero sin confirmar puede recibir abonos normalmente; simplemente no acumula mora.
 - No se permite cancelar un financiamiento una vez que está `partially_disbursed` o más adelante. Solo desde `solicited`.
 
 ### Tipos de Transaction

@@ -213,13 +213,6 @@ class FinancingResource extends Resource
                 ->stripCharacters(',')
                 ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : null),
 
-            DatePicker::make('due_date')
-                ->label('Fecha de Vencimiento')
-                ->disabled()
-                ->dehydrated()
-                ->displayFormat('d/m/Y')
-                ->default(fn () => Carbon::now()->addDays($defaultTerm)->format('Y-m-d')),
-
             // ── Documentos (OC / Factura) ────────────────────────────────────
             Repeater::make('documents')
                 ->label('Documentos (OC / Factura)')
@@ -369,7 +362,12 @@ class FinancingResource extends Resource
 
                     TextEntry::make('due_date')
                         ->label('Fecha de Vencimiento')
-                        ->date('d/m/Y'),
+                        ->date('d/m/Y')
+                        ->placeholder(fn (Financing $record): string =>
+                            in_array($record->status, ['disbursed', 'partially_collected'], true)
+                                ? 'Sin confirmar — plazo no iniciado'
+                                : '—'
+                        ),
 
                     TextEntry::make('issue_period')
                         ->label('Período de Emisión')
@@ -382,6 +380,17 @@ class FinancingResource extends Resource
                     TextEntry::make('disbursed_at')
                         ->label('Fecha de Desembolso')
                         ->date('d/m/Y')
+                        ->placeholder('—'),
+
+                    TextEntry::make('confirmed_at')
+                        ->label('Recepción Confirmada')
+                        ->date('d/m/Y')
+                        ->badge()
+                        ->color('info')
+                        ->placeholder('Pendiente de confirmación'),
+
+                    TextEntry::make('confirmedBy.name')
+                        ->label('Confirmada por')
                         ->placeholder('—'),
 
                     TextEntry::make('collected_at')
