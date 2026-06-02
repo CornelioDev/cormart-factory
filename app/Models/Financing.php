@@ -31,6 +31,8 @@ class Financing extends Model
         'issue_period',
         'collection_period',
         'disbursed_at',
+        'confirmed_at',
+        'confirmed_by',
         'collected_at',
         'registered_by',
     ];
@@ -46,6 +48,7 @@ class Financing extends Model
         'request_date'     => 'date',
         'due_date'         => 'date',
         'disbursed_at'     => 'date',
+        'confirmed_at'     => 'date',
         'collected_at'     => 'date',
     ];
 
@@ -71,6 +74,16 @@ class Financing extends Model
     public function registeredBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'registered_by');
+    }
+
+    public function confirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    public function isConfirmed(): bool
+    {
+        return ! is_null($this->confirmed_at);
     }
 
     public function documents(): HasMany

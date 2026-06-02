@@ -186,7 +186,9 @@ class TransactionService
      *
      * Comisión: solo se retiene al pasar de solicited → (partially_disbursed | disbursed)
      * por primera vez. issue_period y disbursed_at se fijan en ese momento.
-     * due_date se calcula sólo cuando el financiamiento queda totalmente desembolsado.
+     * due_date NO se asigna aquí: queda bajo control exclusivo de
+     * FinancingService::confirmReceipt(), que dispara el plazo cuando el deudor
+     * confirma recepción de la mercancía.
      */
     private function applyDisbursementToFinancings(
         Transaction $transaction,
@@ -225,12 +227,6 @@ class TransactionService
                 $updates['issue_period'] = now()->format('Y-m');
                 $totalCommissionFirstTime += (float) $f->commission;
             }
-
-            // due_date se fija a la fecha del último desembolso + term_days. Mientras
-            // el financiamiento siga parcial, se mantiene null para no generar mora.
-            $updates['due_date'] = $fullyDisbursed
-                ? now()->addDays((int) $f->term_days)
-                : null;
 
             $f->update($updates);
         });
