@@ -43,6 +43,8 @@ jobs:
           git pull origin master
           composer install --no-dev --optimize-autoloader --no-interaction
           php artisan migrate --force
+          php artisan shield:generate --all --panel=admin
+          php artisan db:seed --class=NotificationSettingsSeeder --force
           php artisan optimize:clear
           php artisan optimize
           # Reset OPcache del pool FPM (CLI no lo alcanza — son instancias separadas)
