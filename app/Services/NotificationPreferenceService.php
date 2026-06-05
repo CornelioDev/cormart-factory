@@ -99,13 +99,14 @@ class NotificationPreferenceService
             ->where('enabled', false)
             ->whereIn('user_id', $users->pluck('id'))
             ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
             ->all();
 
         if (empty($optedOut)) {
             return $users;
         }
 
-        return $users->reject(fn (User $u) => in_array($u->id, $optedOut, true))->values();
+        return $users->whereNotIn('id', $optedOut)->values();
     }
 
     /**
