@@ -45,7 +45,7 @@ class ViewFundMember extends ViewRecord
 
         if ($user->hasRole('member')) {
             abort_unless(
-                $user->can('view_fund::member') && $user->fund_member_id === $this->getRecord()->id,
+                $user->can('view_fund::member') && (int) $user->fund_member_id === (int) $this->getRecord()->id,
                 403
             );
             return;

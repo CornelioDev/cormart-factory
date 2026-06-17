@@ -7,6 +7,7 @@ use App\Filament\Pages\MemberAccountPage;
 use App\Filament\Pages\MonthlyClosingPage;
 use App\Filament\Pages\ParametrosPage;
 use App\Filament\Resources\FinancingResource;
+use App\Filament\Resources\FundMemberResource\Pages\ViewFundMember;
 use App\Filament\Resources\TransactionResource;
 use App\Models\Client;
 use App\Models\Company;
@@ -147,6 +148,43 @@ class AuthorizationTest extends ServiceTestCase
         $companyUser = $this->createCompanyUser($this->companyA);
         $this->actingAs($companyUser);
         $this->assertFalse(MemberAccountPage::canAccess());
+    }
+
+    public function test_member_can_view_own_fund_member_record_despite_id_type_mismatch(): void
+    {
+        $member = FundMember::factory()->create(['type' => 'capital', 'contribution' => 100000]);
+        $other  = FundMember::factory()->create(['type' => 'capital', 'contribution' => 50000]);
+
+        $memberRole = $this->createRole('member');
+        \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'view_fund::member', 'guard_name' => 'web']);
+        $memberRole->givePermissionTo('view_fund::member');
+
+        $memberUser = $this->createUserWithRole('member', ['fund_member_id' => $member->id]);
+        // MySQL returns the FK as a string; the original 403 bug was a strict (===) mismatch
+        // against the record's integer id. Force the string type to reproduce it.
+        $memberUser->fund_member_id = (string) $member->id;
+        $this->actingAs($memberUser);
+
+        $authorize = function (FundMember $record) {
+            $page = new ViewFundMember();
+            $page->record = $record;
+
+            $method = new \ReflectionMethod($page, 'authorizeAccess');
+            $method->setAccessible(true);
+            $method->invoke($page);
+        };
+
+        // Own record: must not abort.
+        $authorize($member);
+        $this->assertTrue(true);
+
+        // Another member's record: must abort with 403.
+        try {
+            $authorize($other);
+            $this->fail('Expected 403 when a member views another member record.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(403, $e->getStatusCode());
+        }
     }
 
     public function test_only_super_admin_can_access_closing_and_params_pages(): void
