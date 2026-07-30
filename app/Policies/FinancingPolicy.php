@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Financing;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class FinancingPolicy
@@ -23,6 +23,10 @@ class FinancingPolicy
      */
     public function view(User $user, Financing $financing): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $financing->company_id) {
+            return false;
+        }
+
         return $user->can('view_financing');
     }
 
@@ -39,6 +43,10 @@ class FinancingPolicy
      */
     public function update(User $user, Financing $financing): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $financing->company_id) {
+            return false;
+        }
+
         return $user->can('update_financing');
     }
 
@@ -47,6 +55,10 @@ class FinancingPolicy
      */
     public function delete(User $user, Financing $financing): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $financing->company_id) {
+            return false;
+        }
+
         return $user->can('delete_financing');
     }
 
@@ -63,6 +75,10 @@ class FinancingPolicy
      */
     public function forceDelete(User $user, Financing $financing): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $financing->company_id) {
+            return false;
+        }
+
         return $user->can('force_delete_financing');
     }
 
@@ -79,6 +95,10 @@ class FinancingPolicy
      */
     public function restore(User $user, Financing $financing): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $financing->company_id) {
+            return false;
+        }
+
         return $user->can('restore_financing');
     }
 
@@ -95,6 +115,10 @@ class FinancingPolicy
      */
     public function replicate(User $user, Financing $financing): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $financing->company_id) {
+            return false;
+        }
+
         return $user->can('replicate_financing');
     }
 
