@@ -20,6 +20,7 @@ use Tests\ServiceTestCase;
 class AuthorizationTest extends ServiceTestCase
 {
     private Company $companyA;
+
     private Company $companyB;
 
     protected function setUp(): void
@@ -33,7 +34,21 @@ class AuthorizationTest extends ServiceTestCase
     private function createCompanyUser(Company $company): User
     {
         $user = User::factory()->create(['company_id' => $company->id]);
-        $user->assignRole($this->createRole('company_user'));
+        $role = $this->createRole('company_user');
+
+        // Create standard permissions and assign them to the company_user role
+        $permissions = [
+            'view_any_financing', 'view_financing', 'create_financing', 'update_financing', 'delete_financing',
+            'view_any_client', 'view_client', 'create_client', 'update_client', 'delete_client',
+            'view_any_transaction', 'view_transaction', 'create_transaction', 'update_transaction', 'delete_transaction',
+        ];
+
+        foreach ($permissions as $permissionName) {
+            \Spatie\Permission\Models\Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'web']);
+            $role->givePermissionTo($permissionName);
+        }
+
+        $user->assignRole($role);
 
         return $user;
     }
@@ -52,16 +67,16 @@ class AuthorizationTest extends ServiceTestCase
     {
         $clientA = Client::factory()->for($this->companyA)->create();
         $clientB = Client::factory()->for($this->companyB)->create();
-        $admin   = $this->createUserWithRole('super_admin');
+        $admin = $this->createUserWithRole('super_admin');
 
         Financing::factory()->disbursed()->create([
-            'company_id'    => $this->companyA->id,
-            'client_id'     => $clientA->id,
+            'company_id' => $this->companyA->id,
+            'client_id' => $clientA->id,
             'registered_by' => $admin->id,
         ]);
         Financing::factory()->disbursed()->create([
-            'company_id'    => $this->companyB->id,
-            'client_id'     => $clientB->id,
+            'company_id' => $this->companyB->id,
+            'client_id' => $clientB->id,
             'registered_by' => $admin->id,
         ]);
 
@@ -82,43 +97,43 @@ class AuthorizationTest extends ServiceTestCase
 
         // Collection for company A
         Transaction::create([
-            'type'               => 'collection',
-            'status'             => 'confirmed',
-            'amount'             => 10000,
-            'company_id'         => $this->companyA->id,
-            'bank'               => 'BHD',
+            'type' => 'collection',
+            'status' => 'confirmed',
+            'amount' => 10000,
+            'company_id' => $this->companyA->id,
+            'bank' => 'BHD',
             'transaction_number' => 'COL-001',
-            'transaction_date'   => '2026-01-15',
-            'registered_by'      => $admin->id,
-            'confirmed_by'       => $admin->id,
-            'confirmed_at'       => now(),
+            'transaction_date' => '2026-01-15',
+            'registered_by' => $admin->id,
+            'confirmed_by' => $admin->id,
+            'confirmed_at' => now(),
         ]);
 
         // Expense (no company) — should be excluded for company_user
         Transaction::create([
-            'type'               => 'expense',
-            'status'             => 'confirmed',
-            'amount'             => 500,
-            'bank'               => 'BanReservas',
+            'type' => 'expense',
+            'status' => 'confirmed',
+            'amount' => 500,
+            'bank' => 'BanReservas',
             'transaction_number' => 'EXP-001',
-            'transaction_date'   => '2026-01-15',
-            'registered_by'      => $admin->id,
-            'confirmed_by'       => $admin->id,
-            'confirmed_at'       => now(),
+            'transaction_date' => '2026-01-15',
+            'registered_by' => $admin->id,
+            'confirmed_by' => $admin->id,
+            'confirmed_at' => now(),
         ]);
 
         // Collection for company B — should be excluded
         Transaction::create([
-            'type'               => 'collection',
-            'status'             => 'confirmed',
-            'amount'             => 8000,
-            'company_id'         => $this->companyB->id,
-            'bank'               => 'BHD',
+            'type' => 'collection',
+            'status' => 'confirmed',
+            'amount' => 8000,
+            'company_id' => $this->companyB->id,
+            'bank' => 'BHD',
             'transaction_number' => 'COL-002',
-            'transaction_date'   => '2026-01-15',
-            'registered_by'      => $admin->id,
-            'confirmed_by'       => $admin->id,
-            'confirmed_at'       => now(),
+            'transaction_date' => '2026-01-15',
+            'registered_by' => $admin->id,
+            'confirmed_by' => $admin->id,
+            'confirmed_at' => now(),
         ]);
 
         $companyUser = $this->createCompanyUser($this->companyA);
@@ -153,7 +168,7 @@ class AuthorizationTest extends ServiceTestCase
     public function test_member_can_view_own_fund_member_record_despite_id_type_mismatch(): void
     {
         $member = FundMember::factory()->create(['type' => 'capital', 'contribution' => 100000]);
-        $other  = FundMember::factory()->create(['type' => 'capital', 'contribution' => 50000]);
+        $other = FundMember::factory()->create(['type' => 'capital', 'contribution' => 50000]);
 
         $memberRole = $this->createRole('member');
         \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'view_fund::member', 'guard_name' => 'web']);
@@ -166,7 +181,7 @@ class AuthorizationTest extends ServiceTestCase
         $this->actingAs($memberUser);
 
         $authorize = function (FundMember $record) {
-            $page = new ViewFundMember();
+            $page = new ViewFundMember;
             $page->record = $record;
 
             $method = new \ReflectionMethod($page, 'authorizeAccess');
@@ -204,21 +219,21 @@ class AuthorizationTest extends ServiceTestCase
 
     public function test_cancel_action_only_visible_for_solicited_status(): void
     {
-        $admin  = $this->createUserWithRole('super_admin');
+        $admin = $this->createUserWithRole('super_admin');
         $client = Client::factory()->for($this->companyA)->create();
 
         // Cancel should be available for solicited
         $solicited = Financing::factory()->create([
-            'company_id'    => $this->companyA->id,
-            'client_id'     => $client->id,
+            'company_id' => $this->companyA->id,
+            'client_id' => $client->id,
             'registered_by' => $admin->id,
-            'status'        => 'solicited',
+            'status' => 'solicited',
         ]);
 
         // Cancel should NOT be available for disbursed
         $disbursed = Financing::factory()->disbursed()->create([
-            'company_id'    => $this->companyA->id,
-            'client_id'     => $client->id,
+            'company_id' => $this->companyA->id,
+            'client_id' => $client->id,
             'registered_by' => $admin->id,
         ]);
 
@@ -314,5 +329,131 @@ class AuthorizationTest extends ServiceTestCase
         $companyUser = $this->createCompanyUser($this->companyA);
         $this->actingAs($companyUser);
         $this->assertTrue(CuentasPorCobrarPage::canAccess());
+    }
+
+    // ── IDOR policy enforcement tests ───────────────────────────────────
+
+    public function test_company_user_cannot_view_or_modify_other_company_financing(): void
+    {
+        $clientA = Client::factory()->for($this->companyA)->create();
+        $clientB = Client::factory()->for($this->companyB)->create();
+        $admin = $this->createUserWithRole('super_admin');
+
+        $financingA = Financing::factory()->disbursed()->create([
+            'company_id' => $this->companyA->id,
+            'client_id' => $clientA->id,
+            'registered_by' => $admin->id,
+        ]);
+        $financingB = Financing::factory()->disbursed()->create([
+            'company_id' => $this->companyB->id,
+            'client_id' => $clientB->id,
+            'registered_by' => $admin->id,
+        ]);
+
+        $companyUser = $this->createCompanyUser($this->companyA);
+        $this->actingAs($companyUser);
+
+        // Can view own financing
+        $this->assertTrue($companyUser->can('view', $financingA));
+        // Cannot view other financing
+        $this->assertFalse($companyUser->can('view', $financingB));
+
+        // Can update own financing
+        $this->assertTrue($companyUser->can('update', $financingA));
+        // Cannot update other financing
+        $this->assertFalse($companyUser->can('update', $financingB));
+
+        // Can delete own financing
+        $this->assertTrue($companyUser->can('delete', $financingA));
+        // Cannot delete other financing
+        $this->assertFalse($companyUser->can('delete', $financingB));
+    }
+
+    public function test_company_user_cannot_view_or_modify_other_company_client(): void
+    {
+        $clientA = Client::factory()->for($this->companyA)->create();
+        $clientB = Client::factory()->for($this->companyB)->create();
+
+        $companyUser = $this->createCompanyUser($this->companyA);
+        $this->actingAs($companyUser);
+
+        // Can view own client
+        $this->assertTrue($companyUser->can('view', $clientA));
+        // Cannot view other client
+        $this->assertFalse($companyUser->can('view', $clientB));
+
+        // Can update own client
+        $this->assertTrue($companyUser->can('update', $clientA));
+        // Cannot update other client
+        $this->assertFalse($companyUser->can('update', $clientB));
+
+        // Can delete own client
+        $this->assertTrue($companyUser->can('delete', $clientA));
+        // Cannot delete other client
+        $this->assertFalse($companyUser->can('delete', $clientB));
+    }
+
+    public function test_company_user_cannot_view_or_modify_non_collection_or_other_company_transactions(): void
+    {
+        $admin = $this->createUserWithRole('super_admin');
+
+        // Collection for company A (own)
+        $txOwnCollection = Transaction::create([
+            'type' => 'collection',
+            'status' => 'confirmed',
+            'amount' => 10000,
+            'company_id' => $this->companyA->id,
+            'bank' => 'BHD',
+            'transaction_number' => 'COL-A-001',
+            'transaction_date' => '2026-01-15',
+            'registered_by' => $admin->id,
+            'confirmed_by' => $admin->id,
+            'confirmed_at' => now(),
+        ]);
+
+        // Collection for company B (other)
+        $txOtherCollection = Transaction::create([
+            'type' => 'collection',
+            'status' => 'confirmed',
+            'amount' => 8000,
+            'company_id' => $this->companyB->id,
+            'bank' => 'BHD',
+            'transaction_number' => 'COL-B-001',
+            'transaction_date' => '2026-01-15',
+            'registered_by' => $admin->id,
+            'confirmed_by' => $admin->id,
+            'confirmed_at' => now(),
+        ]);
+
+        // Disbursement for company A (disbursement is not viewable by company_user)
+        $txOwnDisbursement = Transaction::create([
+            'type' => 'disbursement',
+            'status' => 'confirmed',
+            'amount' => 20000,
+            'company_id' => $this->companyA->id,
+            'bank' => 'BHD',
+            'transaction_number' => 'DISB-A-001',
+            'transaction_date' => '2026-01-15',
+            'registered_by' => $admin->id,
+            'confirmed_by' => $admin->id,
+            'confirmed_at' => now(),
+        ]);
+
+        $companyUser = $this->createCompanyUser($this->companyA);
+        $this->actingAs($companyUser);
+
+        // Can view own collection transaction
+        $this->assertTrue($companyUser->can('view', $txOwnCollection));
+        // Cannot view other collection transaction
+        $this->assertFalse($companyUser->can('view', $txOtherCollection));
+        // Cannot view own disbursement transaction
+        $this->assertFalse($companyUser->can('view', $txOwnDisbursement));
+
+        // Can update own collection transaction
+        $this->assertTrue($companyUser->can('update', $txOwnCollection));
+        // Cannot update other collection transaction
+        $this->assertFalse($companyUser->can('update', $txOtherCollection));
+        // Cannot update own disbursement transaction
+        $this->assertFalse($companyUser->can('update', $txOwnDisbursement));
     }
 }
