@@ -105,6 +105,8 @@
         </div>
     </div>
 
+    @php($preview = $this->preview)
+
     @if($preview)
         @if($alreadyClosed)
         <div class="mc-alert-danger" style="border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:14px">

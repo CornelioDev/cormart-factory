@@ -8,6 +8,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Livewire\Attributes\Computed;
 
 class MonthlyClosingPage extends Page
 {
@@ -20,7 +21,7 @@ class MonthlyClosingPage extends Page
     protected static string $view = 'filament.pages.monthly-closing-page';
 
     public ?string $selectedPeriod = null;
-    public ?array $preview = null;
+    public bool $showPreview = false;
     public bool $alreadyClosed = false;
 
     public static function canAccess(): bool
@@ -42,6 +43,21 @@ class MonthlyClosingPage extends Page
         return $options;
     }
 
+    /**
+     * La distribución se recalcula en cada render en lugar de viajar dentro del
+     * snapshot de Livewire. Mantenerla fuera del estado deja el payload en unos
+     * pocos bytes y evita que el checksum dependa de su contenido.
+     */
+    #[Computed]
+    public function preview(): ?array
+    {
+        if (! $this->showPreview || ! $this->selectedPeriod) {
+            return null;
+        }
+
+        return (new DistributionService())->calculate($this->selectedPeriod);
+    }
+
     public function calculate(): void
     {
         if (!$this->selectedPeriod) {
@@ -54,13 +70,14 @@ class MonthlyClosingPage extends Page
 
         $this->alreadyClosed = MonthlyClosing::where('period', $this->selectedPeriod)->exists();
 
-        $service = new DistributionService();
-        $this->preview = $service->calculate($this->selectedPeriod);
+        $this->showPreview = true;
+
+        unset($this->preview);
     }
 
     public function executeClosing(): void
     {
-        if (!$this->selectedPeriod || !$this->preview) {
+        if (!$this->selectedPeriod || !$this->showPreview) {
             return;
         }
 
@@ -76,8 +93,10 @@ class MonthlyClosingPage extends Page
             $service = new DistributionService();
             $service->executeClosing($this->selectedPeriod, auth()->id());
 
-            $this->preview = null;
+            $this->showPreview   = false;
             $this->alreadyClosed = true;
+
+            unset($this->preview);
 
             Notification::make()
                 ->title('Cierre ejecutado correctamente')
