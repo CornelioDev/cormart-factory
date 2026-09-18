@@ -8,6 +8,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Transaction extends Model
 {
+    /**
+     * Bancos con los que opera el fondo. Única fuente: los formularios que piden
+     * banco (transacciones, aportes de miembros, devoluciones de compañías) y el
+     * filtro del listado leen de aquí.
+     */
+    public const BANKS = [
+        'BanReservas'   => 'BanReservas',
+        'BHD'           => 'BHD',
+        'Banco Popular' => 'Banco Popular',
+    ];
+
     protected $fillable = [
         'code',
         'type',

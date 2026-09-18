@@ -294,11 +294,7 @@ class TransactionResource extends Resource
             Select::make('bank')
                 ->label('Banco')
                 ->required()
-                ->options([
-                    'BanReservas'    => 'BanReservas',
-                    'BHD'            => 'BHD',
-                    'Banco Popular'  => 'Banco Popular',
-                ]),
+                ->options(Transaction::BANKS),
 
             TextInput::make('transaction_number')
                 ->label('Número de Transacción')
@@ -343,6 +339,8 @@ class TransactionResource extends Resource
                             'member_disbursement'       => 'warning',
                             'fund_loan_to_capital'      => 'warning',
                             'capital_repayment_to_fund' => 'primary',
+                            'company_receivable'        => 'danger',
+                            'company_repayment'         => 'success',
                             default                     => 'gray',
                         })
                         ->formatStateUsing(fn (string $state): string => match ($state) {
@@ -353,6 +351,8 @@ class TransactionResource extends Resource
                             'member_disbursement'       => 'Desembolso a Miembro',
                             'fund_loan_to_capital'      => 'Préstamo Interno (Fondo→Capital)',
                             'capital_repayment_to_fund' => 'Repago al Fondo',
+                            'company_receivable'        => 'Saldo a Favor del Fondo',
+                            'company_repayment'         => 'Devolución de Compañía',
                             default                     => $state,
                         }),
 
@@ -522,6 +522,8 @@ class TransactionResource extends Resource
                         'member_disbursement'       => 'warning',
                         'fund_loan_to_capital'      => 'warning',
                         'capital_repayment_to_fund' => 'primary',
+                        'company_receivable'        => 'danger',
+                        'company_repayment'         => 'success',
                         default                     => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
@@ -532,6 +534,8 @@ class TransactionResource extends Resource
                         'member_disbursement'       => 'Desembolso a Miembro',
                         'fund_loan_to_capital'      => 'Préstamo Interno',
                         'capital_repayment_to_fund' => 'Repago al Fondo',
+                        'company_receivable'        => 'Saldo a Favor del Fondo',
+                        'company_repayment'         => 'Devolución de Compañía',
                         default                     => $state,
                     })
                     ->toggleable(),
@@ -547,6 +551,8 @@ class TransactionResource extends Resource
                         'member_disbursement'       => 'Desembolso a Miembro',
                         'fund_loan_to_capital'      => 'Préstamo Interno (Fondo→Capital)',
                         'capital_repayment_to_fund' => 'Repago al Fondo',
+                        'company_receivable'        => 'Saldo a Favor del Fondo',
+                        'company_repayment'         => 'Devolución de Compañía',
                     ]),
 
                 SelectFilter::make('status')
@@ -558,11 +564,7 @@ class TransactionResource extends Resource
 
                 SelectFilter::make('bank')
                     ->label('Banco')
-                    ->options([
-                        'BanReservas'   => 'BanReservas',
-                        'BHD'           => 'BHD',
-                        'Banco Popular' => 'Banco Popular',
-                    ]),
+                    ->options(Transaction::BANKS),
 
                 SelectFilter::make('beneficiario')
                     ->label('Beneficiario')

@@ -163,11 +163,7 @@ class ViewFundMember extends ViewRecord
                     Select::make('bank')
                         ->label('Banco')
                         ->required()
-                        ->options([
-                            'BanReservas'   => 'BanReservas',
-                            'BHD'           => 'BHD',
-                            'Banco Popular' => 'Banco Popular',
-                        ]),
+                        ->options(Transaction::BANKS),
 
                     TextInput::make('transaction_number')
                         ->label('Número de Transacción')

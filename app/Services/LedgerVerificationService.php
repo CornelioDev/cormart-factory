@@ -89,9 +89,16 @@ class LedgerVerificationService
         $totalRepayment = (float) Transaction::where('type', 'capital_repayment_to_fund')
             ->where('status', 'confirmed')->sum('amount');
 
+        // Efectivo que una compañía devuelve tras un sobre-desembolso. Entra al
+        // capital, que es de donde salió de más. El asiento que crea el saldo
+        // (company_receivable) no aparece aquí a propósito: no mueve cash, el
+        // desembolso ya lo había debitado.
+        $totalCompanyRepayments = (float) Transaction::where('type', 'company_repayment')
+            ->where('status', 'confirmed')->sum('amount');
+
         $expected = round(
             $totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained
-            + $totalFundLoan - $totalRepayment,
+            + $totalFundLoan - $totalRepayment + $totalCompanyRepayments,
             2
         );
         $actual = (float) CapitalAccount::instance()->balance;
@@ -102,7 +109,7 @@ class LedgerVerificationService
             'actual'   => $actual,
             'diff'     => round($expected - $actual, 2),
             'pass'     => abs($expected - $actual) < 0.01,
-            'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained}) + Préstamo del fondo ({$totalFundLoan}) − Repago al fondo ({$totalRepayment})",
+            'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained}) + Préstamo del fondo ({$totalFundLoan}) − Repago al fondo ({$totalRepayment}) + Devoluciones de compañías ({$totalCompanyRepayments})",
         ];
     }
 
