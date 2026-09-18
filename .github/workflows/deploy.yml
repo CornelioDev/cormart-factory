@@ -1,8 +1,22 @@
 name: Deploy to Production
 
+# Un push a master corre los tests y nada más. El despliegue lo dispara el tag
+# de la versión, que es la señal que el proyecto ya usa para marcar un release
+# (ver el flujo de versionamiento en CLAUDE.md). Así `git push origin master`
+# deja de ser una operación irreversible: no migra producción por sí solo.
+#
+# Para desplegar: crear y empujar el tag (git push origin master vX.Y.Z).
+# Para redesplegar o volver a una versión anterior: workflow_dispatch con el tag.
+# Ojo: revertir el código NO revierte las migraciones ya aplicadas.
 on:
   push:
     branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag a desplegar (ej. v1.12.0)'
+        required: true
 
 jobs:
   test:
@@ -42,7 +56,11 @@ jobs:
 
   deploy:
     needs: test
+    # Sólo en tag de versión o disparo manual. Un push a master no llega aquí.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_REF: ${{ github.event.inputs.ref || github.ref_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -65,6 +83,61 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
+      # El pipeline no puede migrar sin un respaldo fresco: si este paso falla,
+      # el job se detiene y el despliegue nunca corre.
+      - name: Backup production database
+        run: |
+          ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/deploy_key \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -s' << 'EOF'
+          set -euo pipefail
+
+          APP_DIR="$HOME/factory.corneliodev.com"
+          BACKUP_DIR="$HOME/db-backups"
+          mkdir -p "$BACKUP_DIR"
+
+          # Las credenciales salen del .env del servidor: no hacen falta secrets nuevos.
+          read_env() {
+            sed -n "s/^$1=//p" "$APP_DIR/.env" | head -1 \
+              | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//"
+          }
+
+          DB_NAME="$(read_env DB_DATABASE)"
+          DB_USER="$(read_env DB_USERNAME)"
+          DB_PASS="$(read_env DB_PASSWORD)"
+
+          if [ -z "$DB_NAME" ] || [ -z "$DB_USER" ]; then
+            echo "ERROR: no se pudieron leer las credenciales de $APP_DIR/.env"
+            exit 1
+          fi
+
+          # La contrasena va en un archivo temporal, no en la linea de comandos,
+          # donde seria visible para cualquier proceso del servidor compartido.
+          CNF="$(mktemp)"
+          trap 'rm -f "$CNF"' EXIT
+          chmod 600 "$CNF"
+          printf '[client]\nuser=%s\npassword=%s\n' "$DB_USER" "$DB_PASS" > "$CNF"
+
+          FILE="$BACKUP_DIR/${DB_NAME}_$(date +%Y%m%d_%H%M%S).sql.gz"
+
+          # Se escribe como .part y solo se renombra al terminar bien, para que un
+          # volcado interrumpido no deje un archivo que parezca un respaldo valido.
+          trap 'rm -f "$CNF" "$FILE.part"' EXIT
+
+          mysqldump --defaults-extra-file="$CNF" \
+            --single-transaction --quick --routines --events "$DB_NAME" | gzip > "$FILE.part"
+
+          SIZE="$(wc -c < "$FILE.part")"
+          if [ "$SIZE" -lt 10240 ]; then
+            echo "ERROR: el respaldo pesa $SIZE bytes. Demasiado pequeno para ser valido."
+            exit 1
+          fi
+
+          mv "$FILE.part" "$FILE"
+          echo "Respaldo OK: $FILE ($SIZE bytes)"
+
+          find "$BACKUP_DIR" -name '*.sql.gz' -type f -mtime +30 -delete
+          EOF
+
       - name: Upload build assets
         run: |
           scp -P ${{ secrets.SSH_PORT }} -i ~/.ssh/deploy_key -r \
@@ -74,9 +147,15 @@ jobs:
       - name: Deploy
         run: |
           ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/deploy_key \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "DEPLOY_REF='${DEPLOY_REF}' bash -s" << 'EOF'
+          set -euo pipefail
           cd ~/factory.corneliodev.com
-          git pull origin master
+          # Despliega el tag exacto, no "lo que haya en master ahora mismo".
+          # Deja el repo en HEAD desacoplado: para ver en que version esta el
+          # servidor, `git describe --tags`.
+          git fetch --tags --force --prune origin
+          git checkout --force "$DEPLOY_REF"
           composer install --no-dev --optimize-autoloader --no-interaction
           php artisan migrate --force
           php artisan shield:generate --all --panel=admin
