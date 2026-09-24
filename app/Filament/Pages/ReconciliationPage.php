@@ -8,6 +8,7 @@ use App\Models\FundAccount;
 use App\Models\FundMember;
 use App\Models\MonthlyClosing;
 use App\Models\Transaction;
+use App\Services\LedgerVerificationService;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 
@@ -70,60 +71,24 @@ class ReconciliationPage extends Page
 
     private function loadChecks(): void
     {
-        // Check 1: CapitalAccount
-        // Incluye in_kind con contribution > 0 (capitalización de ganancias híbrida)
-        $totalCapital = (float) FundMember::where('active', true)
-            ->where(fn ($q) => $q->where('type', 'capital')
-                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
-            )
-            ->sum('contribution');
+        // Checks 1 y 2: las fórmulas de ambos ledgers viven en LedgerVerificationService.
+        // Esta página solo las presenta — no las reimplementa. Duplicarlas ya provocó
+        // un descuadre falso cuando se agregaron las devoluciones de compañías.
+        $ledger  = app(LedgerVerificationService::class);
+        $capital = $ledger->capitalBreakdown();
+        $fund    = $ledger->fundBreakdown();
 
-        $totalCollectedCapital = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('collected_amount');
+        $expectedCapital = $capital['expected'];
+        $actualCapital   = (float) CapitalAccount::instance()->balance;
 
-        $totalDisbursedPhysical = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('disbursed_amount');
+        $expectedFund = $fund['expected'];
+        $actualFund   = (float) FundAccount::instance()->balance;
 
-        $totalCommissionRetained = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('commission');
-
-        $totalFundLoan = (float) Transaction::where('type', 'fund_loan_to_capital')
-            ->where('status', 'confirmed')->sum('amount');
-        $totalCapitalRepayment = (float) Transaction::where('type', 'capital_repayment_to_fund')
-            ->where('status', 'confirmed')->sum('amount');
-
-        $expectedCapital = round(
-            $totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained
-            + $totalFundLoan - $totalCapitalRepayment,
-            2
-        );
-        $actualCapital = (float) CapitalAccount::instance()->balance;
-
-        // Check 2: FundAccount
-        $totalCommissions = $totalCommissionRetained;
-
-        $totalLateFeeCollected = (float) Financing::sum('late_fee_amount');
-
-        $totalExpenses = (float) Transaction::where('type', 'expense')
-            ->where('status', 'confirmed')
-            ->sum('amount');
-
-        $totalMemberDisbursements = (float) Transaction::where('type', 'member_disbursement')
-            ->where('status', 'confirmed')
-            ->sum('amount');
-
-        $totalEarningsToCapital = (float) Transaction::where('type', 'earnings_to_capital')
-            ->where('status', 'confirmed')
-            ->sum('amount');
-
-        $expectedFund = round(
-            $totalCommissions + $totalLateFeeCollected
-            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital
-            - $totalFundLoan + $totalCapitalRepayment,
-            2
-        );
-        $actualFund = (float) FundAccount::instance()->balance;
-        $outstandingFundLoan = round($totalFundLoan - $totalCapitalRepayment, 2);
+        // Componentes reutilizados por los checks 3 y 4 y por el resumen del período.
+        $totalDisbursedPhysical = $capital['disbursedPhysical'];
+        $totalFundLoan          = $capital['fundLoan'];
+        $totalCapitalRepayment  = $capital['fundRepayment'];
+        $outstandingFundLoan    = round($totalFundLoan - $totalCapitalRepayment, 2);
 
         // Check 3: Financing Integrity
         $collectedOverAmount = Financing::whereRaw('collected_amount > amount')->count();
@@ -149,7 +114,7 @@ class ReconciliationPage extends Page
                 'actual'   => $actualCapital,
                 'diff'     => round($expectedCapital - $actualCapital, 2),
                 'pass'     => abs($expectedCapital - $actualCapital) < 0.01,
-                'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained}) + Préstamo del fondo ({$totalFundLoan}) − Repago al fondo ({$totalCapitalRepayment})",
+                'detail'   => $capital['detail'],
             ],
             [
                 'name'     => 'Cuenta del Fondo',
@@ -157,7 +122,7 @@ class ReconciliationPage extends Page
                 'actual'   => $actualFund,
                 'diff'     => round($expectedFund - $actualFund, 2),
                 'pass'     => abs($expectedFund - $actualFund) < 0.01,
-                'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital}) − Préstamo a capital ({$totalFundLoan}) + Repago desde capital ({$totalCapitalRepayment})",
+                'detail'   => $fund['detail'],
             ],
             [
                 'name'     => 'Préstamo Interno Vigente (Fondo→Capital)',

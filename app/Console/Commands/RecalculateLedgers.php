@@ -3,10 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\CapitalAccount;
-use App\Models\Financing;
 use App\Models\FundAccount;
-use App\Models\FundMember;
-use App\Models\Transaction;
+use App\Services\LedgerVerificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -26,35 +24,19 @@ class RecalculateLedgers extends Command
 
     public function handle(): int
     {
-        $activeCapital = (float) FundMember::where('active', true)
-            ->where(fn ($q) => $q->where('type', 'capital')
-                ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
-            )
-            ->sum('contribution');
+        // Las fórmulas viven en LedgerVerificationService. Este comando ESCRIBE los
+        // balances, así que una copia desactualizada aquí no reporta un descuadre:
+        // lo crea. La versión anterior omitía el préstamo interno fondo↔capital y
+        // las devoluciones de compañías, y habría borrado esos movimientos.
+        $ledger  = app(LedgerVerificationService::class);
+        $capital = $ledger->capitalBreakdown();
+        $fund    = $ledger->fundBreakdown();
 
-        $financingsActive = Financing::whereNotIn('status', ['solicited', 'cancelled']);
-        $disbursedPhysical  = (float) (clone $financingsActive)->sum('disbursed_amount');
-        $commissionRetained = (float) (clone $financingsActive)->sum('commission');
-        $collectedToCapital = (float) (clone $financingsActive)->sum('collected_amount');
-        $lateFeeCollected   = (float) Financing::sum('late_fee_amount');
+        $newCapital = $capital['expected'];
+        $newFund    = $fund['expected'];
 
-        $confirmed = fn (string $type) => (float) Transaction::where('type', $type)
-            ->where('status', 'confirmed')->sum('amount');
-
-        $expenseTxn         = $confirmed('expense');
-        $memberDisbursement = $confirmed('member_disbursement');
-        $earningsToCapital  = $confirmed('earnings_to_capital');
-
-        $newCapital = round(
-            $activeCapital - $disbursedPhysical - $commissionRetained + $collectedToCapital,
-            2
-        );
-
-        $newFund = round(
-            $commissionRetained + $lateFeeCollected
-            - $expenseTxn - $memberDisbursement - $earningsToCapital,
-            2
-        );
+        $this->line('  Capital: ' . $capital['detail']);
+        $this->line('  Fondo:   ' . $fund['detail']);
 
         $oldCapital = (float) CapitalAccount::instance()->balance;
         $oldFund    = (float) FundAccount::instance()->balance;

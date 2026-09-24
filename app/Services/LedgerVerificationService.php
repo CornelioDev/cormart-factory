@@ -65,93 +65,130 @@ class LedgerVerificationService
         app(NotificationService::class)->accountingLedgerError($failed);
     }
 
-    private function checkCapitalAccount(): array
+    /**
+     * Componentes de la invariante del CapitalAccount.
+     *
+     * Única fuente de verdad de la fórmula: ReconciliationPage, DiagnoseLedgers y
+     * RecalculateLedgers leen de aquí en vez de repetirla. La duplicación ya costó
+     * caro: al agregar el libro de cuentas por cobrar a compañías se actualizó solo
+     * esta copia, y la Reconciliación reportó un descuadre falso de 19,765.59
+     * mientras RecalculateLedgers habría borrado el movimiento al reescribir el
+     * balance. No volver a duplicarla.
+     */
+    public function capitalBreakdown(): array
     {
-        $totalCapital = (float) FundMember::where('active', true)
+        $activeFinancings = fn () => Financing::whereNotIn('status', ['solicited', 'cancelled']);
+        $confirmed = fn (string $type) => (float) Transaction::where('type', $type)
+            ->where('status', 'confirmed')->sum('amount');
+
+        // Incluye in_kind con contribution > 0 (capitalización de ganancias híbrida)
+        $contributions = (float) FundMember::where('active', true)
             ->where(fn ($q) => $q->where('type', 'capital')
                 ->orWhere(fn ($q2) => $q2->where('type', 'in_kind')->where('contribution', '>', 0))
             )
             ->sum('contribution');
 
-        $totalCollectedCapital = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('collected_amount');
+        $collected = (float) $activeFinancings()->sum('collected_amount');
 
         // Capital realmente debitado: físicamente desembolsado (al cliente) + comisión retenida (al fondo).
         // Ambas salen del CapitalAccount al primer desembolso o partidas siguientes.
-        $totalDisbursedPhysical = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('disbursed_amount');
+        $disbursedPhysical  = (float) $activeFinancings()->sum('disbursed_amount');
+        $commissionRetained = (float) $activeFinancings()->sum('commission');
 
-        $totalCommissionRetained = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('commission');
-
-        $totalFundLoan = (float) Transaction::where('type', 'fund_loan_to_capital')
-            ->where('status', 'confirmed')->sum('amount');
-        $totalRepayment = (float) Transaction::where('type', 'capital_repayment_to_fund')
-            ->where('status', 'confirmed')->sum('amount');
+        $fundLoan      = $confirmed('fund_loan_to_capital');
+        $fundRepayment = $confirmed('capital_repayment_to_fund');
 
         // Efectivo que una compañía devuelve tras un sobre-desembolso. Entra al
         // capital, que es de donde salió de más. El asiento que crea el saldo
         // (company_receivable) no aparece aquí a propósito: no mueve cash, el
         // desembolso ya lo había debitado.
-        $totalCompanyRepayments = (float) Transaction::where('type', 'company_repayment')
-            ->where('status', 'confirmed')->sum('amount');
+        $companyRepayments = $confirmed('company_repayment');
 
         $expected = round(
-            $totalCapital + $totalCollectedCapital - $totalDisbursedPhysical - $totalCommissionRetained
-            + $totalFundLoan - $totalRepayment + $totalCompanyRepayments,
+            $contributions + $collected - $disbursedPhysical - $commissionRetained
+            + $fundLoan - $fundRepayment + $companyRepayments,
             2
         );
+
+        return [
+            'contributions'      => $contributions,
+            'collected'          => $collected,
+            'disbursedPhysical'  => $disbursedPhysical,
+            'commissionRetained' => $commissionRetained,
+            'fundLoan'           => $fundLoan,
+            'fundRepayment'      => $fundRepayment,
+            'companyRepayments'  => $companyRepayments,
+            'expected'           => $expected,
+            'detail'             => "Aportes ({$contributions}) + Cobros capital ({$collected}) − Desembolsado físico ({$disbursedPhysical}) − Comisión retenida ({$commissionRetained}) + Préstamo del fondo ({$fundLoan}) − Repago al fondo ({$fundRepayment}) + Devoluciones de compañías ({$companyRepayments})",
+        ];
+    }
+
+    private function checkCapitalAccount(): array
+    {
+        $b      = $this->capitalBreakdown();
         $actual = (float) CapitalAccount::instance()->balance;
 
         return [
             'name'     => 'Cuenta de Capital',
-            'expected' => $expected,
+            'expected' => $b['expected'],
             'actual'   => $actual,
-            'diff'     => round($expected - $actual, 2),
-            'pass'     => abs($expected - $actual) < 0.01,
-            'detail'   => "Aportes ({$totalCapital}) + Cobros capital ({$totalCollectedCapital}) − Desembolsado físico ({$totalDisbursedPhysical}) − Comisión retenida ({$totalCommissionRetained}) + Préstamo del fondo ({$totalFundLoan}) − Repago al fondo ({$totalRepayment}) + Devoluciones de compañías ({$totalCompanyRepayments})",
+            'diff'     => round($b['expected'] - $actual, 2),
+            'pass'     => abs($b['expected'] - $actual) < 0.01,
+            'detail'   => $b['detail'],
+        ];
+    }
+
+    /**
+     * Componentes de la invariante del FundAccount. Misma regla que
+     * capitalBreakdown(): única fuente de verdad, no duplicar la fórmula.
+     */
+    public function fundBreakdown(): array
+    {
+        $confirmed = fn (string $type) => (float) Transaction::where('type', $type)
+            ->where('status', 'confirmed')->sum('amount');
+
+        $commissions = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
+            ->sum('commission');
+
+        $lateFeeCollected   = (float) Financing::sum('late_fee_amount');
+        $expenses           = $confirmed('expense');
+        $memberDisbursement = $confirmed('member_disbursement');
+        $earningsToCapital  = $confirmed('earnings_to_capital');
+        $fundLoan           = $confirmed('fund_loan_to_capital');
+        $fundRepayment      = $confirmed('capital_repayment_to_fund');
+
+        $expected = round(
+            $commissions + $lateFeeCollected
+            - $expenses - $memberDisbursement - $earningsToCapital
+            - $fundLoan + $fundRepayment,
+            2
+        );
+
+        return [
+            'commissions'        => $commissions,
+            'lateFeeCollected'   => $lateFeeCollected,
+            'expenses'           => $expenses,
+            'memberDisbursement' => $memberDisbursement,
+            'earningsToCapital'  => $earningsToCapital,
+            'fundLoan'           => $fundLoan,
+            'fundRepayment'      => $fundRepayment,
+            'expected'           => $expected,
+            'detail'             => "Comisiones ({$commissions}) + Mora ({$lateFeeCollected}) − Gastos ({$expenses}) − Retiros a miembros ({$memberDisbursement}) − Capitalizaciones ({$earningsToCapital}) − Préstamo a capital ({$fundLoan}) + Repago desde capital ({$fundRepayment})",
         ];
     }
 
     private function checkFundAccount(): array
     {
-        $totalCommissions = (float) Financing::whereNotIn('status', ['solicited', 'cancelled'])
-            ->sum('commission');
-
-        $totalLateFeeCollected = (float) Financing::sum('late_fee_amount');
-
-        $totalExpenses = (float) Transaction::where('type', 'expense')
-            ->where('status', 'confirmed')
-            ->sum('amount');
-
-        $totalMemberDisbursements = (float) Transaction::where('type', 'member_disbursement')
-            ->where('status', 'confirmed')
-            ->sum('amount');
-
-        $totalEarningsToCapital = (float) Transaction::where('type', 'earnings_to_capital')
-            ->where('status', 'confirmed')
-            ->sum('amount');
-
-        $totalFundLoan = (float) Transaction::where('type', 'fund_loan_to_capital')
-            ->where('status', 'confirmed')->sum('amount');
-        $totalRepayment = (float) Transaction::where('type', 'capital_repayment_to_fund')
-            ->where('status', 'confirmed')->sum('amount');
-
-        $expected = round(
-            $totalCommissions + $totalLateFeeCollected
-            - $totalExpenses - $totalMemberDisbursements - $totalEarningsToCapital
-            - $totalFundLoan + $totalRepayment,
-            2
-        );
+        $b      = $this->fundBreakdown();
         $actual = (float) FundAccount::instance()->balance;
 
         return [
             'name'     => 'Cuenta del Fondo',
-            'expected' => $expected,
+            'expected' => $b['expected'],
             'actual'   => $actual,
-            'diff'     => round($expected - $actual, 2),
-            'pass'     => abs($expected - $actual) < 0.01,
-            'detail'   => "Comisiones ({$totalCommissions}) + Mora ({$totalLateFeeCollected}) − Gastos ({$totalExpenses}) − Retiros a miembros ({$totalMemberDisbursements}) − Capitalizaciones ({$totalEarningsToCapital}) − Préstamo a capital ({$totalFundLoan}) + Repago desde capital ({$totalRepayment})",
+            'diff'     => round($b['expected'] - $actual, 2),
+            'pass'     => abs($b['expected'] - $actual) < 0.01,
+            'detail'   => $b['detail'],
         ];
     }
 }

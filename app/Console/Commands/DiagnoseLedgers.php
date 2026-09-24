@@ -72,26 +72,12 @@ class DiagnoseLedgers extends Command
         }
 
         // ── Modelo propuesto (capital + fund = cash bancario) ─────────────
-        // Capital: contribuciones (incluye earnings_to_capital ya bakeado en contribution)
-        //          − físicamente desembolsado − comisión "prestada" al fondo + colectado a capital
-        $proposedCapital = round(
-            $activeCapital
-            - $disbursedPhysical
-            - $commissionRetained
-            + $collectedToCapital,
-            2
-        );
-
-        // Fund: comisiones + mora − gastos − retiros a miembros − capitalizaciones
-        // (las distribuciones y la reserva de impuesto NO debitan el fondo en el modelo propuesto)
-        $proposedFund = round(
-            $commissionRetained
-            + $lateFeeCollected
-            - $expenseTxn
-            - $memberDisbursement
-            - $earningsToCapital,
-            2
-        );
+        // Las fórmulas viven en LedgerVerificationService: este comando diagnostica,
+        // no redefine la contabilidad. Si su copia se desincroniza, el diagnóstico
+        // acusa un descuadre que no existe.
+        $ledger          = app(LedgerVerificationService::class);
+        $proposedCapital = $ledger->capitalBreakdown()['expected'];
+        $proposedFund    = $ledger->fundBreakdown()['expected'];
 
         $proposedBank = round($proposedCapital + $proposedFund, 2);
 

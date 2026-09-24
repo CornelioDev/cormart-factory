@@ -236,6 +236,59 @@ class CompanyReceivableServiceTest extends ServiceTestCase
         $this->assertEquals(3000.0, $movimientos[1]['balance']);
     }
 
+    /**
+     * La fórmula del capital estuvo duplicada en ReconciliationPage, DiagnoseLedgers
+     * y RecalculateLedgers. Al agregar las devoluciones de compañías solo se
+     * actualizó LedgerVerificationService, y la Reconciliación acusó un descuadre
+     * falso por el monto de la devolución. Este test ata la página al servicio.
+     */
+    public function test_la_reconciliacion_cuadra_tras_una_devolucion(): void
+    {
+        $this->record();
+        $this->service->repay([
+            'company_id'    => $this->company->id,
+            'amount'        => 19765.59,
+            'registered_by' => $this->operator->id,
+        ]);
+
+        $page = new \App\Filament\Pages\ReconciliationPage();
+        $page->selectedPeriod = now()->format('Y-m');
+        $load = (new \ReflectionClass($page))->getMethod('loadChecks');
+        $load->setAccessible(true);
+        $load->invoke($page);
+
+        $capital = collect($page->checks)->firstWhere('name', 'Cuenta de Capital');
+
+        $this->assertNotNull($capital, 'La Reconciliación debe incluir el check de capital.');
+        $this->assertTrue(
+            $capital['pass'],
+            'La Reconciliación debe cuadrar tras una devolución. Detalle: ' . $capital['detail']
+        );
+        $this->assertStringContainsString('Devoluciones de compañías', $capital['detail']);
+    }
+
+    /**
+     * RecalculateLedgers ESCRIBE los balances. Si su fórmula se desincroniza no
+     * reporta un descuadre: lo crea, borrando el movimiento al reescribir.
+     */
+    public function test_recalcular_ledgers_no_altera_un_balance_ya_correcto(): void
+    {
+        $this->record();
+        $this->service->repay([
+            'company_id'    => $this->company->id,
+            'amount'        => 19765.59,
+            'registered_by' => $this->operator->id,
+        ]);
+
+        $capitalAntes = (float) CapitalAccount::instance()->balance;
+        $fondoAntes   = (float) FundAccount::instance()->balance;
+
+        $ledger = new LedgerVerificationService();
+
+        $this->assertEqualsWithDelta($capitalAntes, $ledger->capitalBreakdown()['expected'], 0.01);
+        $this->assertEqualsWithDelta($fondoAntes, $ledger->fundBreakdown()['expected'], 0.01);
+    }
+
     public function test_movimientos_pendientes_no_cuentan_en_el_saldo(): void
     {
         $this->record();
