@@ -210,6 +210,30 @@ Un período solo puede cerrarse una vez.
 
 ---
 
+## Operaciones excepcionales por CLI (`ops:`)
+
+Correcciones que la UI **no expone a propósito** porque tocan el ledger: trasladar un desembolso, revertir un asiento, reencuadrar un período. Van por CLI para que no sean un botón que alguien pueda apretar sin pensar.
+
+| Comando | Qué hace |
+|---|---|
+| `ops:reassign-duplicate-disbursement` | Traslada el desembolso de un financiamiento duplicado a otro `solicited` de la misma compañía, sin mover efectivo |
+
+### Convención para comandos nuevos
+
+Todo comando `ops:` extiende `App\Console\Commands\Operations\OperationCommand` e implementa `perform()`. La base aporta:
+
+- `--as=<correo>` **obligatorio**: verifica el rol `super_admin` contra la BD y autentica a ese usuario con `Auth::login()`. En consola no hay sesión, así que "solo super_admin" no puede apoyarse en `auth()`; autenticar además hace que la capa de servicios (que sí llama a `auth()`) se comporte igual que desde la UI.
+- `--dry-run`: muestra el plan sin escribir.
+- `requireBalancedLedgers()`: aborta si los ledgers ya venían descuadrados — nunca corregir encima de un descuadre preexistente.
+- `assertLedgersBalanced()`: se llama **dentro** de la transacción; si la operación descuadra algo, la excepción revierte todo.
+- `logOperation()`: registra en el log quién autorizó qué.
+
+Reglas: la operación completa va en una sola `DB::transaction`, el `confirm()` tiene default `false` (con `--no-interaction` no hace nada), y cada comando lleva tests de autorización además de los de comportamiento.
+
+> El acceso SSH es la primera barrera; `--as` es la segunda, y la que deja rastro.
+
+---
+
 ## Páginas custom (Filament Pages)
 
 | Page | Acceso | Descripción |
