@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\CompanyCredit;
 use App\Models\Financing;
 use Carbon\Carbon;
 use Filament\Widgets\StatsOverviewWidget;
@@ -33,6 +34,13 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
             ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
             ->sum('amount');
 
+        // Efectivo que los deudores pagaron en cheque y sigue en manos de las
+        // compañías: el financiamiento está cobrado, pero el fondo aún no tiene ese
+        // dinero en el banco. Se liquida por transferencia o se aplica a un desembolso.
+        $enManosDeCompanias = (float) CompanyCredit::query()
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->sum('amount');
+
         return [
             Stat::make($isCompanyUser ? 'Total por Pagar' : 'Total por Cobrar', 'RD$ ' . number_format($total, 2, '.', ','))
                 ->description($count . ' financiamiento' . ($count !== 1 ? 's' : '') . ' activos')
@@ -49,6 +57,13 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
             Stat::make(($isCompanyUser ? 'Pagado en ' : 'Cobrado en ') . now()->translatedFormat('M Y'), 'RD$ ' . number_format($collectedMonth, 2, '.', ','))
                 ->description('mes actual')
                 ->color('info'),
+
+            Stat::make(
+                $isCompanyUser ? 'En Mis Manos (cheques)' : 'En Manos de Compañías',
+                'RD$ ' . number_format($enManosDeCompanias, 2, '.', ',')
+            )
+                ->description('cobrado en cheque, pendiente de liquidar')
+                ->color($enManosDeCompanias > 0 ? 'warning' : 'gray'),
         ];
     }
 }

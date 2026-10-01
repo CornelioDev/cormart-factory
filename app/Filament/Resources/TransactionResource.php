@@ -48,11 +48,45 @@ class TransactionResource extends Resource
         $user  = auth()->user();
 
         if ($user->hasRole('company_user')) {
-            $query->whereIn('type', ['collection'])
+            $query->whereIn('type', ['collection', 'settlement'])
                   ->where('company_id', $user->company_id);
         }
 
         return $query;
+    }
+
+    /**
+     * Convierte un monto enmascarado del formulario ("20,000.00") a float.
+     */
+    protected static function toFloat($value): float
+    {
+        return ($value === null || $value === '')
+            ? 0.0
+            : (float) str_replace(',', '', (string) $value);
+    }
+
+    /**
+     * Formatea un monto para los campos enmascarados del formulario.
+     */
+    protected static function formatMoney(float $amount): ?string
+    {
+        return $amount > 0 ? number_format($amount, 2, '.', ',') : null;
+    }
+
+    /**
+     * Monto que realmente sale del banco: el total menos el saldo aplicado.
+     */
+    protected static function netTransfer(Get $get): float
+    {
+        return round(static::toFloat($get('amount')) - static::toFloat($get('credit_applied')), 2);
+    }
+
+    /**
+     * Solo hay movimiento bancario si queda algo por transferir tras aplicar el saldo.
+     */
+    protected static function hasBankMovement(Get $get): bool
+    {
+        return $get('type') !== 'disbursement' || static::netTransfer($get) > 0;
     }
 
     public static function form(Form $form): Form
@@ -82,6 +116,7 @@ class TransactionResource extends Resource
                         'disbursement' => 'Desembolso (Fondo → Compañía)',
                         'collection'   => 'Cobro (Deudor → Fondo)',
                     ];
+                    $options['settlement'] = 'Liquidación de saldo (Compañía → Fondo)';
                     if ($isSuperAdmin) {
                         $options['expense'] = 'Gasto Operativo';
                     }
@@ -91,9 +126,13 @@ class TransactionResource extends Resource
                 ->hidden(! $isInternal)
                 ->dehydrated()
                 ->live()
-                ->afterStateUpdated(function (Set $set) {
+                ->afterStateUpdated(function (Get $get, Set $set) {
                     $set('financing_ids', []);
-                    $set('amount', null);
+                    $set('credit_applied', null);
+                    $set('payment_method', 'transfer');
+                    $set('amount', $get('type') === 'settlement'
+                        ? static::formatMoney((new TransactionService())->availableCredit($get('company_id')))
+                        : null);
                 }),
 
             Select::make('company_id')
@@ -106,10 +145,13 @@ class TransactionResource extends Resource
                 ->dehydrated()
                 ->live()
                 ->visible(fn (Get $get): bool => $get('type') !== 'expense')
-                ->afterStateUpdated(function (Set $set) use ($isInternal) {
+                ->afterStateUpdated(function (Get $get, Set $set) use ($isInternal) {
                     if ($isInternal) {
                         $set('financing_ids', []);
-                        $set('amount', null);
+                        $set('credit_applied', null);
+                        $set('amount', $get('type') === 'settlement'
+                            ? static::formatMoney((new TransactionService())->availableCredit($get('company_id')))
+                            : null);
                     }
                 }),
 
@@ -135,10 +177,10 @@ class TransactionResource extends Resource
             Select::make('financing_ids')
                 ->label('Financiamientos')
                 ->multiple()
-                ->required(fn (Get $get): bool => $get('type') !== 'expense')
+                ->required(fn (Get $get): bool => ! in_array($get('type'), ['expense', 'settlement'], true))
                 ->default($qFinancingIds)
                 ->live()
-                ->visible(fn (Get $get): bool => $get('type') !== 'expense')
+                ->visible(fn (Get $get): bool => ! in_array($get('type'), ['expense', 'settlement'], true))
                 ->options(function (Get $get) use ($qType, $qCompanyId, $qFinancingIds): array {
                     $type      = $get('type') ?? $qType;
                     $companyId = $get('company_id') ?? $qCompanyId;
@@ -212,10 +254,38 @@ class TransactionResource extends Resource
                 ->visible(fn (Get $get): bool => $get('type') === 'collection'),
 
             // ── Monto ──────────────────────────────────────────────────────
+            // ── Método de pago del deudor ────────────────────────────────────
+            Select::make('payment_method')
+                ->label('Método de Pago')
+                ->required()
+                ->options([
+                    'transfer' => 'Transferencia (a la cuenta del fondo)',
+                    'check'    => 'Cheque (queda en manos de la compañía)',
+                ])
+                ->default('transfer')
+                ->live()
+                ->visible(fn (Get $get): bool => ($get('type') ?? $qType) === 'collection')
+                ->helperText(fn (Get $get): ?string => $get('payment_method') === 'check'
+                    ? 'El dinero queda en manos de la compañía y genera saldo a favor del fondo.'
+                    : null),
+
+            // ── Saldo a favor del fondo en manos de la compañía ─────────────
+            Placeholder::make('available_credit')
+                ->label('Saldo aplicable de la compañía')
+                ->content(fn (Get $get): string => 'RD$ ' . number_format(
+                    (new TransactionService())->availableCredit($get('company_id')),
+                    2, '.', ','
+                ))
+                ->visible(fn (Get $get): bool =>
+                    in_array($get('type'), ['disbursement', 'settlement'], true)
+                    && $get('company_id') !== null
+                ),
+
             TextInput::make('amount')
                 ->label(fn (Get $get) => match($get('type')) {
                     'collection' => auth()->user()->hasRole('company_user') ? 'Monto a Pagar' : 'Monto a Cobrar',
                     'expense'    => 'Monto del Gasto',
+                    'settlement' => 'Monto a Liquidar',
                     default      => 'Monto Total',
                 })
                 ->prefix('RD$')
@@ -290,15 +360,44 @@ class TransactionResource extends Resource
                     return 'Puede ingresar un monto parcial (abono) o el total';
                 }),
 
+            // ── Saldo aplicado al desembolso ─────────────────────────────────
+            TextInput::make('credit_applied')
+                ->label('Saldo a Aplicar')
+                ->prefix('RD$')
+                ->mask(RawJs::make("\$money(\$input, '.', ',', 2)"))
+                ->stripCharacters(',')
+                ->numeric()
+                ->live(onBlur: true)
+                ->default(null)
+                ->minValue(0)
+                ->maxValue(fn (Get $get): float => min(
+                    (new TransactionService())->availableCredit($get('company_id')),
+                    static::toFloat($get('amount'))
+                ))
+                ->dehydrateStateUsing(fn ($state) => $state ? (float) str_replace(',', '', $state) : 0)
+                ->visible(fn (Get $get): bool =>
+                    $get('type') === 'disbursement'
+                    && (new TransactionService())->availableCredit($get('company_id')) > 0
+                )
+                ->helperText(fn (Get $get): string =>
+                    'Transferencia real: RD$ ' . number_format(max(static::netTransfer($get), 0), 2, '.', ',')
+                ),
+
             // ── Datos bancarios ──────────────────────────────────────────────
+            // Banco y número dejan de ser obligatorios cuando no hay transferencia:
+            // un desembolso cubierto al 100% con saldo no mueve el banco.
             Select::make('bank')
-                ->label('Banco')
-                ->required()
+                ->label(fn (Get $get): string => $get('payment_method') === 'check'
+                    ? 'Banco Emisor del Cheque'
+                    : 'Banco')
+                ->required(fn (Get $get): bool => static::hasBankMovement($get))
                 ->options(Transaction::BANKS),
 
             TextInput::make('transaction_number')
-                ->label('Número de Transacción')
-                ->required()
+                ->label(fn (Get $get): string => $get('payment_method') === 'check'
+                    ? 'Número de Cheque'
+                    : 'Número de Transacción')
+                ->required(fn (Get $get): bool => static::hasBankMovement($get))
                 ->unique(table: 'transactions', column: 'transaction_number')
                 ->maxLength(255),
 
@@ -524,6 +623,7 @@ class TransactionResource extends Resource
                         'capital_repayment_to_fund' => 'primary',
                         'company_receivable'        => 'danger',
                         'company_repayment'         => 'success',
+                        'settlement'                => 'primary',
                         default                     => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
@@ -536,9 +636,20 @@ class TransactionResource extends Resource
                         'capital_repayment_to_fund' => 'Repago al Fondo',
                         'company_receivable'        => 'Saldo a Favor del Fondo',
                         'company_repayment'         => 'Devolución de Compañía',
+                        'settlement'                => 'Liquidación de Saldo',
                         default                     => $state,
                     })
                     ->toggleable(),
+
+                TextColumn::make('payment_method')
+                    ->label('Método')
+                    ->badge()
+                    ->color(fn (?string $state): string => $state === 'check' ? 'warning' : 'gray')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'check' => 'Cheque',
+                        default => 'Transferencia',
+                    })
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('type')
@@ -553,6 +664,14 @@ class TransactionResource extends Resource
                         'capital_repayment_to_fund' => 'Repago al Fondo',
                         'company_receivable'        => 'Saldo a Favor del Fondo',
                         'company_repayment'         => 'Devolución de Compañía',
+                        'settlement'                => 'Liquidación de Saldo',
+                    ]),
+
+                SelectFilter::make('payment_method')
+                    ->label('Método de Pago')
+                    ->options([
+                        'transfer' => 'Transferencia',
+                        'check'    => 'Cheque',
                     ]),
 
                 SelectFilter::make('status')

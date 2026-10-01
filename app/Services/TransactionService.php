@@ -15,6 +15,13 @@ use Illuminate\Support\Facades\DB;
 
 class TransactionService
 {
+    private CompanyCreditService $credits;
+
+    public function __construct(?CompanyCreditService $credits = null)
+    {
+        $this->credits = $credits ?? new CompanyCreditService();
+    }
+
     /**
      * Crea una transacción y la vincula a los financiamientos indicados.
      *
@@ -23,11 +30,22 @@ class TransactionService
      * Para cobros: monto puede ser el total (cobro completo) o un monto parcial (abono).
      *   - Si $data['amount'] ya viene definido, se usa ese monto (abono parcial).
      *   - Si no, se calcula desde los financiamientos (cobro completo).
+     *   - Si payment_method es 'check', el efectivo queda en manos de la compañía: no
+     *     entra a los ledgers y genera saldo a favor del fondo.
+     * Para liquidaciones ('settlement'): la compañía transfiere al fondo el efectivo
+     *   que retuvo. No lleva financiamientos y solo la registran usuarios internos.
      */
     public function create(array $data, array $financingIds): Transaction
     {
         return DB::transaction(function () use ($data, $financingIds) {
             $financings = Financing::whereIn('id', $financingIds)->get();
+
+            // El saldo a favor solo tiene sentido en un desembolso; en el resto se
+            // normaliza a cero para que no quede un valor colgado en la fila.
+            $creditApplied = $data['type'] === 'disbursement'
+                ? round((float) ($data['credit_applied'] ?? 0), 2)
+                : 0.0;
+            $data['credit_applied'] = $creditApplied;
 
             if ($data['type'] === 'disbursement') {
                 // Si hay un solo financiamiento y viene amount explícito, es una partida parcial.
@@ -62,10 +80,30 @@ class TransactionService
                     ->filter(fn (Financing $f) => $f->status === 'solicited')
                     ->sum('commission');
 
+                if ($creditApplied > 0) {
+                    if ($creditApplied > $disbursementAmount + 0.001) {
+                        throw new \Exception('El saldo aplicado no puede superar el monto a desembolsar.');
+                    }
+
+                    $available = $this->credits->availableForApplication((int) $data['company_id']);
+
+                    if ($creditApplied > $available + 0.001) {
+                        throw new \Exception(sprintf(
+                            'El saldo aplicado (RD$ %s) supera el saldo de capital disponible de la compañía (RD$ %s).',
+                            number_format($creditApplied, 2, '.', ','),
+                            number_format($available, 2, '.', ',')
+                        ));
+                    }
+                }
+
+                // Efectivo que realmente sale del banco del fondo. La parte cubierta
+                // con saldo a favor ya está en manos de la compañía: no se transfiere.
+                $cashOut = round($disbursementAmount - $creditApplied, 2);
+
                 $capitalBalance = (float) CapitalAccount::instance()->balance;
                 $fundBalance    = (float) FundAccount::instance()->balance;
                 $bank           = round($capitalBalance + $fundBalance, 2);
-                $bankAfter      = round($bank - $disbursementAmount - $taxAmount, 2);
+                $bankAfter      = round($bank - $cashOut - $taxAmount, 2);
 
                 $pendingEarnings = round(
                     (float) Transaction::where('type', 'earning_distribution')->where('status', 'confirmed')->sum('amount')
@@ -79,7 +117,7 @@ class TransactionService
                         . number_format($capitalBalance, 2, '.', ',') . ' + Fondo RD$'
                         . number_format($fundBalance, 2, '.', ',') . ' = RD$'
                         . number_format($bank, 2, '.', ',') . '. Requerido (con impuesto): RD$'
-                        . number_format($disbursementAmount + $taxAmount, 2, '.', ',') . '.'
+                        . number_format($cashOut + $taxAmount, 2, '.', ',') . '.'
                     );
                 }
 
@@ -92,7 +130,7 @@ class TransactionService
                     );
                 }
 
-                $requiredCapital = round($disbursementAmount + $commissionFirstTime, 2);
+                $requiredCapital = round($cashOut + $commissionFirstTime, 2);
 
                 if ($capitalBalance + 0.001 < $requiredCapital) {
                     if (! $useFundEarnings) {
@@ -129,6 +167,25 @@ class TransactionService
                 $data['company_id'] = $financings->first()?->company_id;
             }
 
+            if ($data['type'] === 'settlement') {
+                if (! auth()->user()->hasAnyRole(['super_admin', 'operator'])) {
+                    throw new \Exception('Solo un operador puede registrar la liquidación de saldo de una compañía.');
+                }
+                if (empty($data['company_id'])) {
+                    throw new \Exception('La liquidación requiere una compañía.');
+                }
+                if (! isset($data['amount']) || (float) $data['amount'] <= 0) {
+                    throw new \Exception('El monto de la liquidación debe ser mayor que cero.');
+                }
+            }
+
+            $this->assertBankDataPresent(
+                $data['type'],
+                (float) ($data['amount'] ?? 0),
+                $creditApplied,
+                $data
+            );
+
             // Garantizar status explícito en el modelo (el default de BD no se refleja en memoria)
             $data['status'] ??= 'pending';
 
@@ -157,7 +214,13 @@ class TransactionService
                     $this->createFundLoanToCapital($pendingFundLoan, $transaction);
                 }
 
-                $this->applyDisbursementToFinancings($transaction, $financings, $disbursementAmount, $isPartial ?? false);
+                // Consumir el saldo antes de debitar capital: si no alcanza, la
+                // excepción revierte la transacción sin haber tocado los ledgers.
+                if ($creditApplied > 0) {
+                    $this->credits->apply($transaction, $creditApplied);
+                }
+
+                $this->applyDisbursementToFinancings($transaction, $financings, $disbursementAmount, $isPartial ?? false, $creditApplied);
 
                 // Auto-generar gasto de impuesto sobre el monto desembolsado
                 $this->createTaxExpense($transaction, $data);
@@ -168,6 +231,8 @@ class TransactionService
                     // Transacción pendiente de confirmación — marcar financiamientos como pago pendiente
                     $financings->each(fn (Financing $f) => $f->update(['status' => 'pending_payment']));
                 }
+            } elseif ($data['type'] === 'settlement' && $transaction->status === 'confirmed') {
+                $this->postSettlement($transaction);
             }
 
             // Notificaciones por email
@@ -194,7 +259,8 @@ class TransactionService
         Transaction $transaction,
         Collection $financings,
         float $disbursementAmount,
-        bool $isPartial
+        bool $isPartial,
+        float $creditApplied = 0.0
     ): void {
         $totalCommissionFirstTime = 0.0;
 
@@ -235,7 +301,11 @@ class TransactionService
             (new FundAccountService())->credit($totalCommissionFirstTime);
         }
 
-        $capitalDebit = round($disbursementAmount + $totalCommissionFirstTime, 2);
+        // El saldo a favor aplicado se descuenta del débito: esa parte del desembolso
+        // la cubrió efectivo que la compañía ya tenía en mano, y el asiento negativo
+        // del libro de saldos la da por cobrada. Sin este descuento el capital
+        // quedaría debitado por efectivo que nunca salió del banco.
+        $capitalDebit = round($disbursementAmount + $totalCommissionFirstTime - $creditApplied, 2);
         if ($capitalDebit > 0) {
             (new CapitalAccountService())->debit($capitalDebit);
         }
@@ -304,17 +374,23 @@ class TransactionService
             throw new \Exception('Solo se pueden confirmar transacciones en estado pendiente.');
         }
 
-        $transaction->update([
-            'status'       => 'confirmed',
-            'confirmed_by' => auth()->id(),
-            'confirmed_at' => now(),
-        ]);
+        // En una sola transacción de BD: el libro de saldos bloquea filas para validar
+        // consumos, y ese bloqueo solo vale dentro de una transacción abierta.
+        return DB::transaction(function () use ($transaction) {
+            $transaction->update([
+                'status'       => 'confirmed',
+                'confirmed_by' => auth()->id(),
+                'confirmed_at' => now(),
+            ]);
 
-        if ($transaction->type === 'collection') {
-            $this->applyCollectionToFinancings($transaction);
-        }
+            if ($transaction->type === 'collection') {
+                $this->applyCollectionToFinancings($transaction);
+            } elseif ($transaction->type === 'settlement') {
+                $this->postSettlement($transaction);
+            }
 
-        return $transaction->fresh();
+            return $transaction->fresh();
+        });
     }
 
     /**
@@ -382,21 +458,43 @@ class TransactionService
             ]);
         });
 
-        // Acreditar capital recuperado y mora al fondo
-        if ($totalCapitalRecovered > 0) {
-            (new CapitalAccountService())->credit($totalCapitalRecovered);
+        // Cobro en cheque: el deudor pagó a la compañía y el efectivo quedó allí. El
+        // financiamiento se salda igual, pero los ledgers no se mueven — el fondo no
+        // tiene ese dinero. Queda anotado en el libro de saldos con su composición, y
+        // se acreditará cuando la compañía liquide o lo aplique a un desembolso.
+        if ($transaction->payment_method === 'check') {
+            $this->credits->accrue($transaction, $totalCapitalRecovered, $totalLateFeeCollected);
+
+            return;
+        }
+
+        $this->creditCashToLedgers($transaction, $totalCapitalRecovered, $totalLateFeeCollected);
+    }
+
+    /**
+     * Acredita a los ledgers el efectivo que entró al banco del fondo, separando
+     * capital recuperado de mora.
+     *
+     * Lo usan el cobro por transferencia y la liquidación de saldo de una compañía:
+     * en los dos casos el dinero llega de verdad, y el reparto entre capital y
+     * ganancias del fondo es el mismo.
+     */
+    private function creditCashToLedgers(Transaction $transaction, float $capitalRecovered, float $lateFeeCollected): void
+    {
+        if ($capitalRecovered > 0) {
+            (new CapitalAccountService())->credit($capitalRecovered);
 
             // Repago prioritario al fondo si hay deuda interna vigente.
             $outstanding = $this->outstandingFundLoan();
             if ($outstanding > 0) {
-                $repay = round(min($totalCapitalRecovered, $outstanding), 2);
+                $repay = round(min($capitalRecovered, $outstanding), 2);
                 if ($repay > 0) {
                     $this->createCapitalRepaymentToFund($repay, $transaction);
                 }
             }
         }
-        if ($totalLateFeeCollected > 0) {
-            (new FundAccountService())->credit($totalLateFeeCollected);
+        if ($lateFeeCollected > 0) {
+            (new FundAccountService())->credit($lateFeeCollected);
         }
     }
 
@@ -623,6 +721,52 @@ class TransactionService
         $service = new FinancingService();
 
         return (float) $financings->sum(fn (Financing $f) => $f->remainingBalance() + $service->calculateLateFee($f, $asOfDate));
+    }
+
+    /**
+     * Asienta la liquidación de saldo de una compañía: el efectivo entró, así que se
+     * acredita a los ledgers según la composición que el libro de saldos devuelve.
+     */
+    private function postSettlement(Transaction $transaction): void
+    {
+        $movement = $this->credits->settle($transaction);
+
+        if (! $movement) {
+            return;
+        }
+
+        // El movimiento se guarda con signo negativo (consume saldo); a los ledgers
+        // entra en positivo.
+        $this->creditCashToLedgers(
+            $transaction,
+            round(abs((float) $movement->capital_amount), 2),
+            round(abs((float) $movement->late_fee_amount), 2)
+        );
+    }
+
+    /**
+     * Saldo de la compañía que puede aplicarse a un desembolso (solo capital).
+     */
+    public function availableCredit(?int $companyId): float
+    {
+        return $companyId ? $this->credits->availableForApplication($companyId) : 0.0;
+    }
+
+    /**
+     * Banco y número solo se exigen cuando hay movimiento bancario real: un desembolso
+     * cubierto al 100% con saldo a favor no genera transferencia.
+     */
+    private function assertBankDataPresent(string $type, float $amount, float $creditApplied, array $data): void
+    {
+        if (! in_array($type, ['disbursement', 'collection', 'settlement'], true)) {
+            return;
+        }
+
+        $hasBankMovement = $type !== 'disbursement' || round($amount - $creditApplied, 2) > 0;
+
+        if ($hasBankMovement && (empty($data['bank']) || empty($data['transaction_number']))) {
+            throw new \Exception('El banco y el número de transacción son obligatorios.');
+        }
     }
 
     /**
