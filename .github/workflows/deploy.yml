@@ -88,7 +88,7 @@ jobs:
       - name: Backup production database
         run: |
           ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/deploy_key \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -s' << 'EOF'
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -ls' << 'EOF'
           set -euo pipefail
 
           APP_DIR="$HOME/factory.corneliodev.com"
@@ -148,20 +148,52 @@ jobs:
         run: |
           ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/deploy_key \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "DEPLOY_REF='${DEPLOY_REF}' bash -s" << 'EOF'
+            "DEPLOY_REF='${DEPLOY_REF}' bash -ls" << 'EOF'
           set -euo pipefail
           cd ~/factory.corneliodev.com
+
+          # Preflight: resolver las herramientas ANTES de mover el repo.
+          #
+          # Esta es la lección de v1.14.0: el checkout del tag corrió primero y
+          # `composer install` falló después con "command not found", dejando el
+          # sitio con código nuevo sobre el esquema viejo — caído, y sin haber
+          # migrado. Si falta una herramienta, ahora el despliegue se detiene con
+          # producción intacta en la versión anterior.
+          PHP_BIN="$(command -v php || true)"
+          if [ -z "$PHP_BIN" ]; then
+            echo "ERROR: no se encontró php. PATH=$PATH"
+            exit 1
+          fi
+
+          COMPOSER_CMD="$(command -v composer || true)"
+          if [ -z "$COMPOSER_CMD" ]; then
+            for candidate in /opt/cpanel/composer/bin/composer "$HOME/bin/composer" /usr/local/bin/composer; do
+              if [ -x "$candidate" ]; then COMPOSER_CMD="$candidate"; break; fi
+            done
+          fi
+          if [ -z "$COMPOSER_CMD" ] && [ -f "$HOME/composer.phar" ]; then
+            COMPOSER_CMD="$PHP_BIN $HOME/composer.phar"
+          fi
+          if [ -z "$COMPOSER_CMD" ]; then
+            echo "ERROR: no se encontró composer ni en el PATH ni en las rutas habituales."
+            echo "PATH=$PATH"
+            exit 1
+          fi
+
+          echo "php:      $PHP_BIN"
+          echo "composer: $COMPOSER_CMD"
+
           # Despliega el tag exacto, no "lo que haya en master ahora mismo".
           # Deja el repo en HEAD desacoplado: para ver en que version esta el
           # servidor, `git describe --tags`.
           git fetch --tags --force --prune origin
           git checkout --force "$DEPLOY_REF"
-          composer install --no-dev --optimize-autoloader --no-interaction
-          php artisan migrate --force
-          php artisan shield:generate --all --panel=admin
-          php artisan db:seed --class=NotificationSettingsSeeder --force
-          php artisan optimize:clear
-          php artisan optimize
+          $COMPOSER_CMD install --no-dev --optimize-autoloader --no-interaction
+          "$PHP_BIN" artisan migrate --force
+          "$PHP_BIN" artisan shield:generate --all --panel=admin
+          "$PHP_BIN" artisan db:seed --class=NotificationSettingsSeeder --force
+          "$PHP_BIN" artisan optimize:clear
+          "$PHP_BIN" artisan optimize
           # Reset OPcache del pool FPM (CLI no lo alcanza — son instancias separadas)
           echo '<?php opcache_reset(); echo "ok"; @unlink(__FILE__);' > public/_opcache_reset.php
           curl -fsS https://factory.corneliodev.com/_opcache_reset.php || echo "warn: opcache reset via web falló"
