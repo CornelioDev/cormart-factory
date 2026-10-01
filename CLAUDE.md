@@ -77,6 +77,7 @@ solicited → partially_disbursed → disbursed → partially_collected → coll
 - `collection`: Deudor → Fondo. Puede ser cobro completo o abono parcial. Requiere confirmación de operator si lo crea un company_user.
 - `fund_loan_to_capital` (interno): el `FundAccount` presta cash al `CapitalAccount` cuando el capital no alcanza para un desembolso y el operador activó el toggle `use_fund_earnings`. No afecta el banco real, solo mueve cash entre ledgers.
 - `capital_repayment_to_fund` (interno): el `CapitalAccount` repone al `FundAccount` lo prestado, automáticamente con cada cobro hasta saldar la deuda. Prioritario sobre acreditar capital al miembro.
+- `settlement`: Compañía → Fondo. Liquidación del efectivo que la compañía retuvo por cobros en cheque. Sin financiamientos asociados. Solo la registran usuarios internos.
 
 ### Préstamo interno Fondo → Capital
 
@@ -88,6 +89,52 @@ outstandingFundLoan = Σ amount(fund_loan_to_capital, confirmed) − Σ amount(c
 ```
 
 Cada cobro confirmado liquida primero la deuda con el fondo (hasta el monto recuperado o hasta saldar) antes de incrementar el `CapitalAccount` neto. La mora sigue yendo íntegra al `FundAccount` y no participa en el repago.
+
+### Método de pago (`payment_method`)
+
+Aplica a los cobros:
+- `transfer`: el dinero entra a la cuenta del fondo. Comportamiento por defecto.
+- `check`: el deudor paga a la compañía con cheque. El financiamiento se salda/abona igual
+  que siempre, pero **el efectivo queda en manos de la compañía** y genera saldo a favor
+  del fondo. **Los ledgers no se mueven**: el fondo no tiene ese dinero en el banco.
+
+Banco y número de transacción son opcionales a nivel de BD: un cobro en cheque los usa como
+banco emisor y número de cheque, y un desembolso cubierto al 100% con saldo no tiene transferencia.
+
+### Saldo de compañías (`CompanyCredit`)
+
+Libro de movimientos por compañía. El saldo es la suma con signo de sus filas:
+
+| type | signo | origen |
+|---|---|---|
+| `accrual` | + | cobro con `payment_method = check`, al **confirmarse** la transacción |
+| `application` | − | saldo aplicado a un desembolso (`transactions.credit_applied`) |
+| `settlement` | − | la compañía transfiere el efectivo al fondo |
+
+Cada fila guarda además su composición: `amount = capital_amount + late_fee_amount`. Ese
+desglose es lo que decide a qué ledger entra el efectivo cuando llega.
+
+**Reglas contables (no modificar sin revisar la invariante):**
+
+1. Un cobro en cheque **no acredita ningún ledger**. Crea un `accrual` con la composición
+   que calculó `applyCollectionToFinancings` (capital recuperado y mora).
+2. Una liquidación (`settlement`) reparte el monto **en proporción a la composición
+   pendiente** y acredita capital → `CapitalAccount`, mora → `FundAccount`. Recién ahí
+   corre el repago prioritario de la deuda interna fondo→capital.
+3. Una `application` consume **solo la parte de capital**. La mora es ganancia del fondo y
+   tiene que llegar como efectivo real; reciclarla en un desembolso la convertiría en
+   capital de trabajo que el fondo nunca cobró.
+4. `credit_applied` reduce el débito a `CapitalAccount` y la exigencia de solvencia: el
+   efectivo que sale del banco es `netTransferred() = amount − credit_applied`.
+
+La invariante de `LedgerVerificationService` resta lo que sigue en manos de las compañías,
+porque `financings.collected_amount` y `financings.late_fee_amount` ya lo cuentan:
+```
+capital esperado = … − Σ company_credits.capital_amount
+fondo esperado   = … − Σ company_credits.late_fee_amount
+```
+
+Escribir la tabla **solo** a través de `CompanyCreditService`; `accrue()` y `settle()` son idempotentes.
 
 ---
 
@@ -205,7 +252,7 @@ Un período solo puede cerrarse una vez.
 |---|---|---|
 | `FinancingPipelineWidget` | Todos | Filtrado por company_id para company_user |
 | `PendingTransactionsWidget` | super_admin, operator | Global |
-| `CuentasPorCobrarStatsWidget` | super_admin, operator, company_user | Filtrado por company_id para company_user (isDiscovered = false) |
+| `CuentasPorCobrarStatsWidget` | super_admin, operator, company_user | Filtrado por company_id para company_user (isDiscovered = false). Incluye "En Manos de Compañías" |
 | `CuentasPorPagarStatsWidget` | super_admin, operator | Global (isDiscovered = false) |
 
 ---

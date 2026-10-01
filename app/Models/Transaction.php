@@ -23,7 +23,9 @@ class Transaction extends Model
         'code',
         'type',
         'status',
+        'payment_method',
         'amount',
+        'credit_applied',
         'bank',
         'transaction_number',
         'transaction_date',
@@ -38,6 +40,7 @@ class Transaction extends Model
 
     protected $casts = [
         'amount'           => 'decimal:2',
+        'credit_applied'   => 'decimal:2',
         'transaction_date' => 'date',
         'confirmed_at'     => 'datetime',
     ];
@@ -80,6 +83,19 @@ class Transaction extends Model
     {
         return $this->belongsToMany(Financing::class, 'transaction_financings')
                     ->withTimestamps();
+    }
+
+    public function credits(): HasMany
+    {
+        return $this->hasMany(CompanyCredit::class);
+    }
+
+    /**
+     * Monto que realmente sale de la cuenta del fondo, descontando el saldo aplicado.
+     */
+    public function netTransferred(): float
+    {
+        return round((float) $this->amount - (float) $this->credit_applied, 2);
     }
 
     public function getBeneficiario(): ?string

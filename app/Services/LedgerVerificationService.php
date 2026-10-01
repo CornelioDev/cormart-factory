@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CapitalAccount;
+use App\Models\CompanyCredit;
 use App\Models\Financing;
 use App\Models\FundAccount;
 use App\Models\FundMember;
@@ -104,9 +105,15 @@ class LedgerVerificationService
         // desembolso ya lo había debitado.
         $companyRepayments = $confirmed('company_repayment');
 
+        // Capital cobrado que todavía no entró al banco del fondo: el deudor pagó
+        // con cheque y el efectivo quedó en manos de la compañía. `collected` ya lo
+        // cuenta (el financiamiento sí se saldó), así que hay que restarlo hasta
+        // que la compañía lo liquide o lo aplique a un desembolso.
+        $creditHeldCapital = $this->creditHeld('capital_amount');
+
         $expected = round(
             $contributions + $collected - $disbursedPhysical - $commissionRetained
-            + $fundLoan - $fundRepayment + $companyRepayments,
+            + $fundLoan - $fundRepayment + $companyRepayments - $creditHeldCapital,
             2
         );
 
@@ -118,8 +125,9 @@ class LedgerVerificationService
             'fundLoan'           => $fundLoan,
             'fundRepayment'      => $fundRepayment,
             'companyRepayments'  => $companyRepayments,
+            'creditHeldCapital'  => $creditHeldCapital,
             'expected'           => $expected,
-            'detail'             => "Aportes ({$contributions}) + Cobros capital ({$collected}) − Desembolsado físico ({$disbursedPhysical}) − Comisión retenida ({$commissionRetained}) + Préstamo del fondo ({$fundLoan}) − Repago al fondo ({$fundRepayment}) + Devoluciones de compañías ({$companyRepayments})",
+            'detail'             => "Aportes ({$contributions}) + Cobros capital ({$collected}) − Desembolsado físico ({$disbursedPhysical}) − Comisión retenida ({$commissionRetained}) + Préstamo del fondo ({$fundLoan}) − Repago al fondo ({$fundRepayment}) + Devoluciones de compañías ({$companyRepayments}) − Capital en manos de compañías ({$creditHeldCapital})",
         ];
     }
 
@@ -157,10 +165,15 @@ class LedgerVerificationService
         $fundLoan           = $confirmed('fund_loan_to_capital');
         $fundRepayment      = $confirmed('capital_repayment_to_fund');
 
+        // Misma corrección que en capitalBreakdown(), para la mora: `lateFeeCollected`
+        // sale de financings.late_fee_amount, que se acumula igual cuando el cobro
+        // fue en cheque. Mientras el efectivo esté en la compañía, el fondo no lo tiene.
+        $creditHeldLateFee = $this->creditHeld('late_fee_amount');
+
         $expected = round(
             $commissions + $lateFeeCollected
             - $expenses - $memberDisbursement - $earningsToCapital
-            - $fundLoan + $fundRepayment,
+            - $fundLoan + $fundRepayment - $creditHeldLateFee,
             2
         );
 
@@ -172,9 +185,19 @@ class LedgerVerificationService
             'earningsToCapital'  => $earningsToCapital,
             'fundLoan'           => $fundLoan,
             'fundRepayment'      => $fundRepayment,
+            'creditHeldLateFee'  => $creditHeldLateFee,
             'expected'           => $expected,
-            'detail'             => "Comisiones ({$commissions}) + Mora ({$lateFeeCollected}) − Gastos ({$expenses}) − Retiros a miembros ({$memberDisbursement}) − Capitalizaciones ({$earningsToCapital}) − Préstamo a capital ({$fundLoan}) + Repago desde capital ({$fundRepayment})",
+            'detail'             => "Comisiones ({$commissions}) + Mora ({$lateFeeCollected}) − Gastos ({$expenses}) − Retiros a miembros ({$memberDisbursement}) − Capitalizaciones ({$earningsToCapital}) − Préstamo a capital ({$fundLoan}) + Repago desde capital ({$fundRepayment}) − Mora en manos de compañías ({$creditHeldLateFee})",
         ];
+    }
+
+    /**
+     * Suma con signo de una de las columnas de composición del libro de saldos de
+     * compañías: lo que el fondo ya devengó pero todavía no tiene en el banco.
+     */
+    private function creditHeld(string $column): float
+    {
+        return round((float) CompanyCredit::sum($column), 2);
     }
 
     private function checkFundAccount(): array
