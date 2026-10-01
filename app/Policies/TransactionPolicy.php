@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class TransactionPolicy
@@ -23,6 +23,12 @@ class TransactionPolicy
      */
     public function view(User $user, Transaction $transaction): bool
     {
+        if ($user->hasRole('company_user')) {
+            if ($transaction->type !== 'collection' || (int) $user->company_id !== (int) $transaction->company_id) {
+                return false;
+            }
+        }
+
         return $user->can('view_transaction');
     }
 
@@ -39,6 +45,12 @@ class TransactionPolicy
      */
     public function update(User $user, Transaction $transaction): bool
     {
+        if ($user->hasRole('company_user')) {
+            if ($transaction->type !== 'collection' || (int) $user->company_id !== (int) $transaction->company_id) {
+                return false;
+            }
+        }
+
         return $user->can('update_transaction');
     }
 
@@ -47,6 +59,12 @@ class TransactionPolicy
      */
     public function delete(User $user, Transaction $transaction): bool
     {
+        if ($user->hasRole('company_user')) {
+            if ($transaction->type !== 'collection' || (int) $user->company_id !== (int) $transaction->company_id) {
+                return false;
+            }
+        }
+
         return $user->can('delete_transaction');
     }
 
@@ -63,6 +81,12 @@ class TransactionPolicy
      */
     public function forceDelete(User $user, Transaction $transaction): bool
     {
+        if ($user->hasRole('company_user')) {
+            if ($transaction->type !== 'collection' || (int) $user->company_id !== (int) $transaction->company_id) {
+                return false;
+            }
+        }
+
         return $user->can('force_delete_transaction');
     }
 
@@ -79,6 +103,12 @@ class TransactionPolicy
      */
     public function restore(User $user, Transaction $transaction): bool
     {
+        if ($user->hasRole('company_user')) {
+            if ($transaction->type !== 'collection' || (int) $user->company_id !== (int) $transaction->company_id) {
+                return false;
+            }
+        }
+
         return $user->can('restore_transaction');
     }
 
@@ -95,6 +125,12 @@ class TransactionPolicy
      */
     public function replicate(User $user, Transaction $transaction): bool
     {
+        if ($user->hasRole('company_user')) {
+            if ($transaction->type !== 'collection' || (int) $user->company_id !== (int) $transaction->company_id) {
+                return false;
+            }
+        }
+
         return $user->can('replicate_transaction');
     }
 

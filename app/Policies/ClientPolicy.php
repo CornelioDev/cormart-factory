@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Client;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class ClientPolicy
@@ -23,6 +23,10 @@ class ClientPolicy
      */
     public function view(User $user, Client $client): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $client->company_id) {
+            return false;
+        }
+
         return $user->can('view_client');
     }
 
@@ -39,6 +43,10 @@ class ClientPolicy
      */
     public function update(User $user, Client $client): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $client->company_id) {
+            return false;
+        }
+
         return $user->can('update_client');
     }
 
@@ -47,6 +55,10 @@ class ClientPolicy
      */
     public function delete(User $user, Client $client): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $client->company_id) {
+            return false;
+        }
+
         return $user->can('delete_client');
     }
 
@@ -63,6 +75,10 @@ class ClientPolicy
      */
     public function forceDelete(User $user, Client $client): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $client->company_id) {
+            return false;
+        }
+
         return $user->can('force_delete_client');
     }
 
@@ -79,6 +95,10 @@ class ClientPolicy
      */
     public function restore(User $user, Client $client): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $client->company_id) {
+            return false;
+        }
+
         return $user->can('restore_client');
     }
 
@@ -95,6 +115,10 @@ class ClientPolicy
      */
     public function replicate(User $user, Client $client): bool
     {
+        if ($user->hasRole('company_user') && (int) $user->company_id !== (int) $client->company_id) {
+            return false;
+        }
+
         return $user->can('replicate_client');
     }
 
