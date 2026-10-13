@@ -450,6 +450,69 @@ class CompanyCreditServiceTest extends ServiceTestCase
         $this->assertLedgersBalanced();
     }
 
+    /**
+     * El caso de FN000153: capital y fondo casi en cero, y el desembolso se cubre
+     * entero con el cheque que la compañía tiene en mano. No sale dinero del
+     * banco, así que no hay impuesto de transferencia que exigirle a un banco vacío.
+     */
+    public function test_disbursement_fully_covered_by_credit_pays_no_transfer_tax(): void
+    {
+        $this->actingAs($this->operator);
+        $collected = $this->createDisbursedFinancing(200000.00);
+        $this->service->create($this->checkCollection(), [$collected->id]);
+
+        $nuevo = $this->solicitedFinancing(100000.00);
+
+        // Banco prácticamente vacío: solo queda la comisión que retendrá el desembolso.
+        CapitalAccount::instance()->update(['balance' => 5000.00]);
+        $fundBefore = 0.00;
+        FundAccount::instance()->update(['balance' => $fundBefore]);
+        $expensesBefore = Transaction::where('type', 'expense')->count();
+
+        $txn = $this->service->create([
+            'type'               => 'disbursement',
+            'company_id'         => $this->company->id,
+            'credit_applied'     => 95000.00,
+            'bank'               => null,
+            'transaction_number' => null,
+            'transaction_date'   => '2026-02-01',
+            'registered_by'      => $this->operator->id,
+        ], [$nuevo->id]);
+
+        $this->assertSame('disbursed', $nuevo->fresh()->status);
+        $this->assertEquals(0.00, $txn->fresh()->netTransferred());
+        $this->assertSame($expensesBefore, Transaction::where('type', 'expense')->count());
+        // El fondo solo recibe la comisión; no se le debita impuesto.
+        $this->assertEquals(5000.00, $this->fund());
+    }
+
+    public function test_transfer_tax_is_charged_on_the_transferred_part_only(): void
+    {
+        $this->actingAs($this->operator);
+        $collected = $this->createDisbursedFinancing(100000.00);
+        $this->service->create($this->checkCollection(), [$collected->id]);
+
+        $nuevo = $this->solicitedFinancing(100000.00);
+
+        $txn = $this->service->create([
+            'type'               => 'disbursement',
+            'company_id'         => $this->company->id,
+            'credit_applied'     => 30000.00,
+            'bank'               => 'BanReservas',
+            'transaction_number' => 'TXN-910',
+            'transaction_date'   => '2026-02-01',
+            'registered_by'      => $this->operator->id,
+        ], [$nuevo->id]);
+
+        $tax = Transaction::where('type', 'expense')
+            ->where('transaction_number', $txn->code)
+            ->value('amount');
+
+        // 95,000 a desembolsar − 30,000 de saldo = 65,000 transferidos × 0.15 %.
+        $this->assertEquals(97.50, (float) $tax);
+        $this->assertLedgersBalanced();
+    }
+
     public function test_disbursement_with_cash_movement_still_requires_bank_data(): void
     {
         $this->actingAs($this->operator);

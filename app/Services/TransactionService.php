@@ -70,9 +70,6 @@ class TransactionService
                     $disbursementAmount = (float) $financings->sum(fn (Financing $f) => $f->remainingToDisburse());
                 }
 
-                $taxPct    = (float) Parameter::where('key', 'tax_pct')->value('value');
-                $taxAmount = $taxPct > 0 ? round($disbursementAmount * ($taxPct / 100), 2) : 0;
-
                 $useFundEarnings = (string) Parameter::where('key', 'allow_fund_loan_to_capital')->value('value') === '1';
 
                 // Comisión retenida del primer desembolso de cada financiamiento. Sale del capital.
@@ -99,6 +96,11 @@ class TransactionService
                 // Efectivo que realmente sale del banco del fondo. La parte cubierta
                 // con saldo a favor ya está en manos de la compañía: no se transfiere.
                 $cashOut = round($disbursementAmount - $creditApplied, 2);
+
+                // El impuesto lo cobra el banco por la transferencia, así que su base
+                // es lo que se transfiere. Un desembolso cubierto con saldo no lo paga.
+                $taxPct    = (float) Parameter::where('key', 'tax_pct')->value('value');
+                $taxAmount = $taxPct > 0 ? round($cashOut * ($taxPct / 100), 2) : 0;
 
                 $capitalBalance = (float) CapitalAccount::instance()->balance;
                 $fundBalance    = (float) FundAccount::instance()->balance;
@@ -222,7 +224,7 @@ class TransactionService
 
                 $this->applyDisbursementToFinancings($transaction, $financings, $disbursementAmount, $isPartial ?? false, $creditApplied);
 
-                // Auto-generar gasto de impuesto sobre el monto desembolsado
+                // Auto-generar gasto de impuesto sobre el monto transferido
                 $this->createTaxExpense($transaction, $data);
             } elseif ($data['type'] === 'collection') {
                 if ($transaction->status === 'confirmed') {
@@ -343,8 +345,14 @@ class TransactionService
             return;
         }
 
-        $taxAmount  = round((float) $disbursement->amount * ($taxPct / 100), 2);
-        $txCode     = 'TX' . str_pad($disbursement->id, 6, '0', STR_PAD_LEFT);
+        // Misma base que la validación de solvencia en create(): lo transferido.
+        $taxAmount = round($disbursement->netTransferred() * ($taxPct / 100), 2);
+
+        if ($taxAmount <= 0) {
+            return;
+        }
+
+        $txCode    = 'TX' . str_pad($disbursement->id, 6, '0', STR_PAD_LEFT);
         $dgii       = Supplier::firstOrCreate(['name' => 'DGII']);
         $registrant = $disbursementData['registered_by'] ?? auth()->id();
 
