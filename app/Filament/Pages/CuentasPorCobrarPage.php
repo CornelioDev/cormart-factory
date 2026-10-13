@@ -56,7 +56,7 @@ class CuentasPorCobrarPage extends Page implements HasTable
         $companyId = $user->hasRole('company_user') ? $user->company_id : null;
 
         $query = Financing::query()
-            ->whereIn('status', ['partially_disbursed', 'disbursed', 'partially_collected'])
+            ->whereIn('status', Financing::RECEIVABLE_STATUSES)
             ->when($companyId, fn (Builder $q) => $q->where('company_id', $companyId))
             ->orderByRaw('due_date IS NULL, due_date');
 
@@ -88,6 +88,31 @@ class CuentasPorCobrarPage extends Page implements HasTable
                     ->label('Monto Financiado')
                     ->money('DOP', locale: 'es_DO')
                     ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('pending_balance')
+                    ->label('Saldo por Cobrar')
+                    ->state(fn (Financing $record): float => $record->remainingBalance())
+                    ->money('DOP', locale: 'es_DO')
+                    ->toggleable(),
+
+                // Un cobro registrado por la compañía y aún sin confirmar no es dinero
+                // recibido: el financiamiento sigue aquí, marcado, hasta que se confirme.
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'pending_payment'     => 'warning',
+                        'partially_collected' => 'primary',
+                        'partially_disbursed' => 'gray',
+                        default               => 'info',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'pending_payment'     => 'Pago por confirmar',
+                        'partially_collected' => 'Abonado',
+                        'partially_disbursed' => 'Desembolso parcial',
+                        default               => 'Por cobrar',
+                    })
                     ->toggleable(),
 
                 TextColumn::make('transfer_amount')
@@ -169,6 +194,8 @@ class CuentasPorCobrarPage extends Page implements HasTable
                         ]));
                     }),
             ])
+            // Ya hay un cobro esperando confirmación: no se registra otro encima.
+            ->checkIfRecordIsSelectableUsing(fn (Financing $record): bool => $record->status !== 'pending_payment')
             ->recordUrl(fn (Financing $record): string => route('filament.admin.resources.financings.view', $record))
             ->emptyStateHeading('Sin cuentas por cobrar')
             ->emptyStateDescription('No hay financiamientos desembolsados pendientes de cobro.')

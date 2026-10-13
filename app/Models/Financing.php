@@ -12,6 +12,16 @@ class Financing extends Model
 {
     use HasFactory;
 
+    /**
+     * Estados en los que el deudor todavía debe dinero. Única fuente para las
+     * pantallas de cuentas por cobrar.
+     *
+     * Incluye `pending_payment`: un cobro registrado por la compañía y aún sin
+     * confirmar no es dinero recibido. Mientras se dejó fuera, el financiamiento
+     * desaparecía de todos los totales hasta la confirmación.
+     */
+    public const RECEIVABLE_STATUSES = ['partially_disbursed', 'disbursed', 'partially_collected', 'pending_payment'];
+
     protected $fillable = [
         'company_id',
         'client_id',
@@ -112,7 +122,22 @@ class Financing extends Model
         return $this->remainingToDisburse() <= 0.001;
     }
 
-    public function totalOwed(\Carbon\Carbon $asOfDate = null): float
+    /**
+     * Estado que le corresponde por sus montos, sin contar cobros en espera.
+     * Sirve para devolver un financiamiento a su sitio cuando se rechaza el cobro
+     * pendiente que lo tenía en `pending_payment`.
+     */
+    public function statusFromAmounts(): string
+    {
+        return match (true) {
+            (float) $this->collected_amount >= (float) $this->amount => 'collected',
+            ! $this->isFullyDisbursed()                               => 'partially_disbursed',
+            (float) $this->collected_amount > 0                       => 'partially_collected',
+            default                                                   => 'disbursed',
+        };
+    }
+
+    public function totalOwed(?\Carbon\Carbon $asOfDate = null): float
     {
         $balance = $this->remainingBalance();
         $lateFee = app(\App\Services\FinancingService::class)->calculateLateFee($this, $asOfDate ?? now());

@@ -30,8 +30,14 @@ class FinancingPipelineWidget extends BaseWidget
             : Financing::query();
 
         $solicited        = $base()->where('status', 'solicited');
-        $disbursed        = $base()->whereIn('status', ['disbursed', 'partially_disbursed']);
-        $partialCollected = $base()->where('status', 'partially_collected');
+        // Un financiamiento con un cobro por confirmar (pending_payment) sigue en
+        // la etapa que le toca por sus montos: nada se cobró hasta la confirmación.
+        $disbursed = $base()->where(fn ($q) => $q
+            ->whereIn('status', ['disbursed', 'partially_disbursed'])
+            ->orWhere(fn ($q2) => $q2->where('status', 'pending_payment')->where('collected_amount', '<=', 0)));
+        $partialCollected = $base()->where(fn ($q) => $q
+            ->where('status', 'partially_collected')
+            ->orWhere(fn ($q2) => $q2->where('status', 'pending_payment')->where('collected_amount', '>', 0)));
         $period           = now()->format('Y-m');
         $collected        = $base()->where('status', 'collected')->where('collection_period', $period);
 

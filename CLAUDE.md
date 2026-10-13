@@ -71,9 +71,20 @@ solicited → partially_disbursed → disbursed → partially_collected → coll
 - `confirmed_at` y `confirmed_by` se setean vía la acción "Confirmar recepción" en la vista del financiamiento. Solo pueden confirmar **super_admin** o el **company_user** dueño de la compañía. La acción aparece cuando el status es `disbursed` o `partially_collected` y aún no hay confirmación.
 - El cobro **no** está bloqueado antes de la confirmación: un financiamiento desembolsado pero sin confirmar puede recibir abonos normalmente; simplemente no acumula mora.
 - No se permite cancelar un financiamiento una vez que está `partially_disbursed` o más adelante. Solo desde `solicited`.
+- `pending_payment`: un company_user registró un cobro que el fondo aún no confirma. **No es dinero recibido**: `collected_amount` no cambia y el financiamiento sigue contando como por cobrar. Usar `Financing::RECEIVABLE_STATUSES` para cualquier consulta de cuentas por cobrar, nunca una lista de estados escrita a mano. Al confirmar o rechazar el cobro, el financiamiento sale de este estado (`Financing::statusFromAmounts()`).
+
+### Cobros pendientes de confirmación
+
+Un cobro `pending` no ha tocado nada (ni ledgers, ni `collected_amount`, ni `company_credits`), así que un usuario interno puede, desde el listado, la vista del cobro o el widget del dashboard:
+
+- **Confirmar** — `TransactionService::confirm()`.
+- **Corregir** monto, método de pago, banco o número — `correctPendingCollection()`. Sigue pendiente.
+- **Rechazar** — `rejectPendingCollection()`. Queda `rejected` (no se borra), libera su número de transacción y devuelve los financiamientos a por cobrar.
+
+Las tres acciones se configuran en un solo sitio: `TransactionResource::configureConfirmAction()`, `configureCorrectAction()` y `configureRejectAction()`. Un cobro ya confirmado no se corrige por aquí: eso es una reversión.
 
 ### Tipos de Transaction
-- `disbursement`: Fondo → Compañía. Se confirma automáticamente. Puede ser una partida parcial (1 solo financiamiento, monto explícito ≤ `remainingToDisburse`) o el desembolso completo de varios financiamientos.
+- `disbursement`: Fondo → Compañía. Se confirma automáticamente. Puede ser una partida parcial (1 solo financiamiento, monto explícito ≤ `remainingToDisburse`) o el desembolso completo de varios financiamientos. El impuesto bancario (`tax_pct`) se calcula sobre `netTransferred()`: un desembolso cubierto con efectivo de cheques no lo paga.
 - `collection`: Deudor → Fondo. Puede ser cobro completo o abono parcial. Requiere confirmación de operator si lo crea un company_user.
 - `fund_loan_to_capital` (interno): el `FundAccount` presta cash al `CapitalAccount` cuando el capital no alcanza para un desembolso y el operador activó el toggle `use_fund_earnings`. No afecta el banco real, solo mueve cash entre ledgers.
 - `capital_repayment_to_fund` (interno): el `CapitalAccount` repone al `FundAccount` lo prestado, automáticamente con cada cobro hasta saldar la deuda. Prioritario sobre acreditar capital al miembro.
@@ -135,6 +146,18 @@ fondo esperado   = … − Σ company_credits.late_fee_amount
 ```
 
 Escribir la tabla **solo** a través de `CompanyCreditService`; `accrue()` y `settle()` son idempotentes.
+
+### Las dos deudas de una compañía (no mezclar)
+
+Una compañía puede deberle al fondo por dos conceptos, con reglas distintas:
+
+| | Cheques en su mano | Sobre-desembolsos |
+|---|---|---|
+| Servicio | `CompanyCreditService` (tabla `company_credits`) | `CompanyReceivableService` (transacciones `company_receivable` / `company_repayment`) |
+| Origen | Un deudor pagó con cheque a la compañía | El fondo transfirió de más |
+| Se salda con | Liquidación (`settlement`) o descuento en un desembolso (`credit_applied`) | Solo devolución (`company_repayment`) |
+
+`SaldosCompaniasPage` es una tabla con una fila por compañía y una columna por deuda (crece en filas, no en bloques por compañía); el historial va debajo en una pestaña por deuda, acotable a la compañía elegida. **Nunca** se suman en un saldo único aplicable: un sobre-desembolso no puede descontarse de un desembolso. En la UI se llaman siempre "cheques en manos de compañías" y "sobre-desembolsos"; no usar "saldo" a secas para ninguno de los dos.
 
 ---
 
@@ -252,8 +275,9 @@ Un período solo puede cerrarse una vez.
 |---|---|---|
 | `FinancingPipelineWidget` | Todos | Filtrado por company_id para company_user |
 | `PendingTransactionsWidget` | super_admin, operator | Global |
-| `CuentasPorCobrarStatsWidget` | super_admin, operator, company_user | Filtrado por company_id para company_user (isDiscovered = false). Incluye "En Manos de Compañías" |
+| `CuentasPorCobrarStatsWidget` | super_admin, operator, company_user | Filtrado por company_id para company_user (isDiscovered = false). El total es lo que debe el deudor (`amount − collected_amount`). Incluye "En Manos de Compañías" |
 | `CuentasPorPagarStatsWidget` | super_admin, operator | Global (isDiscovered = false) |
+| `CompanyCreditMovementsWidget` | super_admin, operator | Historial de cheques, dentro de `SaldosCompaniasPage` (isDiscovered = false) |
 
 ---
 
@@ -264,7 +288,7 @@ Correcciones que la UI **no expone a propósito** porque tocan el ledger: trasla
 | Comando | Qué hace |
 |---|---|
 | `ops:reassign-duplicate-disbursement` | Traslada el desembolso de un financiamiento duplicado a otro `solicited` de la misma compañía, sin mover efectivo |
-| `ops:correct-pending-collection-amount` | Corrige el monto de un cobro todavía `pending` (la UI solo permite confirmarlo). No toca ledgers: el monto corregido se aplica al confirmar |
+| `ops:correct-pending-collection-amount` | Corrige el monto de un cobro todavía `pending`. La UI ya lo ofrece con la acción "Corregir"; el comando queda para cuando se quiera el dry-run y la verificación de ledgers alrededor |
 | `ops:reclassify-repayment-as-collection` | Convierte una devolución de compañía (`company_repayment`) en cobro de un financiamiento cuando el pago lo hizo el deudor. Reabre el saldo contra la compañía, sin mover ledgers |
 
 ### Convención para comandos nuevos
@@ -290,6 +314,7 @@ Reglas: la operación completa va en una sola `DB::transaction`, el `confirm()` 
 | `MonthlyClosingPage` | super_admin | Ejecutar y ver cierres mensuales |
 | `CuentasPorCobrarPage` | super_admin, operator, company_user | Vista de cuentas por cobrar |
 | `CuentasPorPagarPage` | super_admin, operator | Vista de cuentas por pagar |
+| `SaldosCompaniasPage` | super_admin, operator | Lo que las compañías deben al fondo: cheques en su mano y sobre-desembolsos, por separado |
 | `ParametrosPage` | super_admin | Gestión de parámetros del sistema |
 | `MailSettingsPage` | super_admin | Configuración SMTP y pruebas de correo |
 | `ReconciliationPage` | super_admin | Reconciliación contable de ledgers |

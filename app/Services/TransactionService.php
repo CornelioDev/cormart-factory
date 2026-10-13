@@ -360,11 +360,11 @@ class TransactionService
             'type'               => 'expense',
             'status'             => 'confirmed',
             'amount'             => $taxAmount,
-            'bank'               => $disbursementData['bank'],
+            'bank'               => $disbursementData['bank'] ?? null,
             'transaction_number' => $txCode,
             'transaction_date'   => $disbursementData['transaction_date'],
             'supplier_id'        => $dgii->id,
-            'notes'              => "Impuesto por transacción — Automático ({$taxPct}%) por desembolso {$txCode}",
+            'notes'              => 'Impuesto por transacción — Automático (' . Parameter::formatPct($taxPct) . "%) por desembolso {$txCode}",
             'registered_by'      => $registrant,
             'confirmed_by'       => $registrant,
             'confirmed_at'       => now(),
@@ -399,6 +399,170 @@ class TransactionService
 
             return $transaction->fresh();
         });
+    }
+
+    /**
+     * Corrige un cobro que todavía espera confirmación: monto, método de pago,
+     * banco o número.
+     *
+     * Es seguro porque un cobro pendiente no tocó nada todavía: ni los ledgers, ni
+     * `collected_amount`, ni el libro de saldos se mueven hasta confirm(). Por eso
+     * mismo no aplica a un cobro confirmado, que ya se repartió entre capital y
+     * mora; eso sería una reversión.
+     *
+     * @param  array{amount?: float|null, payment_method?: string|null, bank?: string|null, transaction_number?: string|null}  $changes
+     */
+    public function correctPendingCollection(Transaction $transaction, array $changes, string $reason): Transaction
+    {
+        $this->assertInternalUser('corregir un cobro pendiente');
+
+        return DB::transaction(function () use ($transaction, $changes, $reason) {
+            // Releer con bloqueo: si alguien lo confirmó entre que se abrió el
+            // formulario y se guardó, el valor viejo ya se aplicó.
+            $locked = Transaction::whereKey($transaction->id)->lockForUpdate()->first();
+            $this->assertPendingCollection($locked);
+
+            $updates = [];
+            $log     = [];
+
+            if (array_key_exists('amount', $changes) && $changes['amount'] !== null) {
+                $newAmount = round((float) $changes['amount'], 2);
+                $oldAmount = round((float) $locked->amount, 2);
+
+                if ($newAmount <= 0) {
+                    throw new \Exception('El monto corregido debe ser mayor que cero.');
+                }
+
+                if (abs($newAmount - $oldAmount) >= 0.01) {
+                    // Lo que exceda la deuda no se aplicaría a ningún financiamiento
+                    // al confirmar, y la transacción registraría dinero sin destino.
+                    $totalOwed = round($this->calculateTotalOwed(
+                        $locked->financings->pluck('id')->all(),
+                        Carbon::parse($locked->transaction_date)
+                    ), 2);
+
+                    if ($newAmount > $totalOwed + 0.001) {
+                        throw new \Exception(sprintf(
+                            'El monto corregido (RD$ %s) supera lo adeudado por los financiamientos del cobro (RD$ %s).',
+                            number_format($newAmount, 2, '.', ','),
+                            number_format($totalOwed, 2, '.', ',')
+                        ));
+                    }
+
+                    $updates['amount'] = $newAmount;
+                    $log[] = 'monto RD$ ' . number_format($oldAmount, 2, '.', ',')
+                        . ' → RD$ ' . number_format($newAmount, 2, '.', ',');
+                }
+            }
+
+            $method = $changes['payment_method'] ?? null;
+            if ($method !== null && $method !== $locked->payment_method) {
+                if (! in_array($method, ['transfer', 'check'], true)) {
+                    throw new \Exception("Método de pago inválido: {$method}.");
+                }
+
+                $labels = ['transfer' => 'transferencia', 'check' => 'cheque'];
+                $updates['payment_method'] = $method;
+                $log[] = 'método ' . ($labels[$locked->payment_method] ?? $locked->payment_method)
+                    . ' → ' . $labels[$method];
+            }
+
+            foreach (['bank' => 'banco', 'transaction_number' => 'número'] as $field => $label) {
+                $value = $changes[$field] ?? null;
+                if ($value !== null && $value !== '' && $value !== $locked->{$field}) {
+                    if ($field === 'transaction_number'
+                        && Transaction::where('transaction_number', $value)->whereKeyNot($locked->id)->exists()) {
+                        throw new \Exception("Ya existe otra transacción con el número {$value}.");
+                    }
+
+                    $updates[$field] = $value;
+                    $log[] = "{$label} " . ($locked->{$field} ?: '—') . " → {$value}";
+                }
+            }
+
+            if (empty($updates)) {
+                throw new \Exception('No hay ningún cambio que aplicar.');
+            }
+
+            $updates['notes'] = $this->appendNote(
+                $locked->notes,
+                'Corregido (' . implode('; ', $log) . '): ' . trim($reason) . ' — ' . auth()->user()->email . '.'
+            );
+
+            $locked->update($updates);
+
+            return $locked->fresh();
+        });
+    }
+
+    /**
+     * Rechaza un cobro pendiente: el pago no existió o no corresponde.
+     *
+     * No se borra, queda como `rejected` con el motivo. Los financiamientos que
+     * tenía en `pending_payment` vuelven al estado que les toca por sus montos,
+     * salvo que otro cobro pendiente los siga reteniendo.
+     */
+    public function rejectPendingCollection(Transaction $transaction, string $reason): Transaction
+    {
+        $this->assertInternalUser('rechazar un cobro pendiente');
+
+        return DB::transaction(function () use ($transaction, $reason) {
+            $locked = Transaction::whereKey($transaction->id)->lockForUpdate()->first();
+            $this->assertPendingCollection($locked);
+
+            $locked->update([
+                'status' => 'rejected',
+                // El número es único en la tabla: se libera para que el pago real
+                // pueda registrarse de nuevo con su misma referencia.
+                'transaction_number' => $locked->transaction_number
+                    ? $locked->transaction_number . '-R' . $locked->id
+                    : null,
+                'notes' => $this->appendNote(
+                    $locked->notes,
+                    'Rechazado: ' . trim($reason) . ' — ' . auth()->user()->email . '.'
+                ),
+            ]);
+
+            $locked->financings->each(function (Financing $financing) use ($locked) {
+                if ($financing->status !== 'pending_payment') {
+                    return;
+                }
+
+                $stillWaiting = $financing->transactions()
+                    ->where('transactions.id', '!=', $locked->id)
+                    ->where('type', 'collection')
+                    ->where('status', 'pending')
+                    ->exists();
+
+                if (! $stillWaiting) {
+                    $financing->update(['status' => $financing->statusFromAmounts()]);
+                }
+            });
+
+            return $locked->fresh();
+        });
+    }
+
+    private function assertPendingCollection(?Transaction $transaction): void
+    {
+        if (! $transaction || $transaction->type !== 'collection' || $transaction->status !== 'pending') {
+            throw new \Exception(
+                'Solo se puede modificar un cobro pendiente de confirmación. '
+                . 'Uno confirmado ya se aplicó a los financiamientos y a los ledgers.'
+            );
+        }
+    }
+
+    private function assertInternalUser(string $action): void
+    {
+        if (! auth()->user()?->hasAnyRole(['super_admin', 'operator'])) {
+            throw new \Exception("Solo un usuario interno del fondo puede {$action}.");
+        }
+    }
+
+    private function appendNote(?string $notes, string $line): string
+    {
+        return trim(trim((string) $notes) . ' | ' . $line, ' |');
     }
 
     /**
@@ -718,7 +882,7 @@ class TransactionService
     /**
      * Calcula el total adeudado (capital + mora estimada) para una lista de financiamientos.
      */
-    public function calculateTotalOwed(array $financingIds, Carbon $asOfDate = null): float
+    public function calculateTotalOwed(array $financingIds, ?Carbon $asOfDate = null): float
     {
         if (empty($financingIds)) {
             return 0.0;
@@ -758,6 +922,16 @@ class TransactionService
     public function availableCredit(?int $companyId): float
     {
         return $companyId ? $this->credits->availableForApplication($companyId) : 0.0;
+    }
+
+    /**
+     * Saldo completo que la compañía puede liquidar por transferencia: capital y
+     * mora. Es mayor que availableCredit() cuando el cheque incluía mora, que no
+     * puede aplicarse a un desembolso pero sí debe llegar al fondo.
+     */
+    public function settleableCredit(?int $companyId): float
+    {
+        return $companyId ? max(0.0, $this->credits->balanceFor($companyId)) : 0.0;
     }
 
     /**

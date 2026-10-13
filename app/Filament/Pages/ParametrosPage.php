@@ -43,7 +43,8 @@ class ParametrosPage extends Page implements HasForms
             'reserve_pct'       => round((float) ($params['reserve_pct']       ?? 20.0), 2),
             'in_kind_pct'       => round((float) ($params['in_kind_pct']       ?? 50.0), 2),
             'default_term_days' => (int)   ($params['default_term_days'] ?? 15),
-            'tax_pct'           => round((float) ($params['tax_pct']           ?? 0.15), 4),
+            // Como texto, para que el campo muestre 0.20 y no 0.2.
+            'tax_pct'           => Parameter::formatPct($params['tax_pct'] ?? 0.15),
             'late_fee_pct'      => round((float) ($params['late_fee_pct']      ?? 5.0),  2),
             'due_alert_days'    => (int)   ($params['due_alert_days']    ?? 5),
             'alert_send_time'   =>          $params['alert_send_time']   ?? '07:00',
@@ -130,14 +131,14 @@ class ParametrosPage extends Page implements HasForms
                             ->helperText('Plazo predeterminado al crear un financiamiento.'),
 
                         TextInput::make('tax_pct')
-                            ->label('Impuesto sobre Desembolsos')
+                            ->label('Impuesto por Transferencia')
                             ->suffix('%')
                             ->numeric()
                             ->minValue(0)
                             ->maxValue(100)
                             ->step(0.01)
                             ->required()
-                            ->helperText('Se genera automáticamente como gasto en cada desembolso al fondo o a un miembro.'),
+                            ->helperText('Lo cobra el banco sobre lo transferido. Se registra automáticamente como gasto en cada desembolso a una compañía o a un miembro.'),
 
                         TextInput::make('late_fee_pct')
                             ->label('Mora por Atraso')

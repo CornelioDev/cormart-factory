@@ -19,13 +19,18 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
         $isCompanyUser = $user->hasRole('company_user');
         $companyId     = $isCompanyUser ? $user->company_id : null;
 
-        $base = fn () => Financing::whereIn('status', ['partially_disbursed', 'disbursed', 'partially_collected'])
+        $base = fn () => Financing::whereIn('status', Financing::RECEIVABLE_STATUSES)
             ->when($companyId, fn ($q) => $q->where('company_id', $companyId));
 
-        $total        = (float) $base()->selectRaw('SUM(disbursed_amount - collected_amount) as pending')->value('pending');
+        // Lo que el deudor debe es el monto de la factura menos lo cobrado, igual que
+        // Financing::remainingBalance() y que el cobro que se le va a exigir. Antes se
+        // usaba disbursed_amount, que omite la comisión: la pantalla mostraba menos de
+        // lo adeudado y una compañía llegó a programar sus pagos contra esa cifra.
+        $total        = (float) $base()->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
         $count        = $base()->count();
+        $awaiting     = $base()->where('status', 'pending_payment')->count();
         $overdueCount = $base()->where('due_date', '<', Carbon::today())->count();
-        $overdueTotal = (float) $base()->where('due_date', '<', Carbon::today())->selectRaw('SUM(disbursed_amount - collected_amount) as pending')->value('pending');
+        $overdueTotal = (float) $base()->where('due_date', '<', Carbon::today())->selectRaw('SUM(amount - collected_amount) as pending')->value('pending');
         $alDia        = $total - $overdueTotal;
         $alDiaCount   = $count - $overdueCount;
 
@@ -43,7 +48,10 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
 
         return [
             Stat::make($isCompanyUser ? 'Total por Pagar' : 'Total por Cobrar', 'RD$ ' . number_format($total, 2, '.', ','))
-                ->description($count . ' financiamiento' . ($count !== 1 ? 's' : '') . ' activos')
+                ->description(
+                    $count . ' financiamiento' . ($count !== 1 ? 's' : '') . ' activos'
+                    . ($awaiting > 0 ? ' · ' . $awaiting . ' con pago por confirmar' : '')
+                )
                 ->color('primary'),
 
             Stat::make('Al Día', 'RD$ ' . number_format($alDia, 2, '.', ','))
@@ -62,7 +70,8 @@ class CuentasPorCobrarStatsWidget extends StatsOverviewWidget
                 $isCompanyUser ? 'En Mis Manos (cheques)' : 'En Manos de Compañías',
                 'RD$ ' . number_format($enManosDeCompanias, 2, '.', ',')
             )
-                ->description('cobrado en cheque, pendiente de liquidar')
+                ->description('cheques cobrados, pendientes de liquidar')
+                ->url($isCompanyUser ? null : \App\Filament\Pages\SaldosCompaniasPage::getUrl())
                 ->color($enManosDeCompanias > 0 ? 'warning' : 'gray'),
         ];
     }

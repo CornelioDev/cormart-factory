@@ -4,8 +4,6 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\TransactionResource;
 use App\Models\Transaction;
-use App\Services\TransactionService;
-use Filament\Notifications\Notification;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -59,6 +57,12 @@ class PendingTransactionsWidget extends BaseWidget
                     ->label('Monto')
                     ->money('DOP', locale: 'es_DO'),
 
+                TextColumn::make('payment_method')
+                    ->label('Forma de Pago')
+                    ->badge()
+                    ->color(fn (?string $state): string => $state === 'check' ? 'warning' : 'gray')
+                    ->formatStateUsing(fn (?string $state): string => $state === 'check' ? 'Cheque' : 'Transferencia'),
+
                 TextColumn::make('bank')
                     ->label('Banco'),
 
@@ -75,26 +79,9 @@ class PendingTransactionsWidget extends BaseWidget
                     ->counts('financings'),
             ])
             ->actions([
-                Action::make('confirm')
-                    ->label('Confirmar')
-                    ->icon('heroicon-o-check-badge')
-                    ->color('success')
-                    ->visible(! $isCompanyUser)
-                    ->requiresConfirmation()
-                    ->modalHeading('Confirmar cobro')
-                    ->modalDescription('¿Confirmas que este pago fue recibido y verificado?')
-                    ->action(function (Transaction $record): void {
-                        try {
-                            (new TransactionService())->confirm($record);
-                        } catch (\Exception $e) {
-                            Notification::make()
-                                ->title('No se pudo confirmar la transacción')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->persistent()
-                                ->send();
-                        }
-                    }),
+                TransactionResource::configureConfirmAction(Action::make('confirm')),
+                TransactionResource::configureCorrectAction(Action::make('correct')),
+                TransactionResource::configureRejectAction(Action::make('reject')),
             ])
             ->emptyStateHeading($isCompanyUser ? 'Sin pagos pendientes' : 'Sin cobros pendientes')
             ->emptyStateDescription($isCompanyUser ? 'Todos los pagos han sido procesados.' : 'Todos los cobros han sido confirmados.')

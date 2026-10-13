@@ -116,7 +116,7 @@ class FinancialDashboardPage extends Page
         }
 
         // KPIs operativos. Estados con capital del fondo afuera (físicamente desembolsado).
-        $outstandingStatuses = ['partially_disbursed', 'disbursed', 'partially_collected'];
+        $outstandingStatuses = Financing::RECEIVABLE_STATUSES;
 
         $capitalInStreet = (float) Financing::whereIn('status', $outstandingStatuses)
             ->selectRaw('SUM(disbursed_amount - collected_amount) as pending')

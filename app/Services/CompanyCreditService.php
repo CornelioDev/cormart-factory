@@ -30,6 +30,21 @@ class CompanyCreditService
     }
 
     /**
+     * Saldo de cheques por compañía, solo las que tienen algo pendiente.
+     *
+     * @return \Illuminate\Support\Collection<int, float>  company_id => saldo
+     */
+    public function outstandingByCompany(): \Illuminate\Support\Collection
+    {
+        return CompanyCredit::query()
+            ->selectRaw('company_id, SUM(amount) AS balance')
+            ->groupBy('company_id')
+            ->pluck('balance', 'company_id')
+            ->map(fn ($balance) => round((float) $balance, 2))
+            ->filter(fn (float $balance) => abs($balance) > 0.001);
+    }
+
+    /**
      * Composición del saldo pendiente: cuánto es capital y cuánto es mora.
      */
     public function compositionFor(int $companyId): array

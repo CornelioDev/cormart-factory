@@ -19,7 +19,7 @@ class GenerateRetroactiveTaxExpenses extends Command
         $taxPct = (float) Parameter::where('key', 'tax_pct')->value('value');
 
         if ($taxPct <= 0) {
-            $this->error("tax_pct es {$taxPct}. No se generarán gastos.");
+            $this->error('tax_pct es ' . Parameter::formatPct($taxPct) . '. No se generarán gastos.');
             return self::FAILURE;
         }
 
@@ -51,7 +51,7 @@ class GenerateRetroactiveTaxExpenses extends Command
 
         if ($this->option('dry-run')) {
             $this->table(
-                ['ID', 'TX Code', 'Monto Desembolso', 'Impuesto (' . $taxPct . '%)'],
+                ['ID', 'TX Code', 'Monto Desembolso', 'Impuesto (' . Parameter::formatPct($taxPct) . '%)'],
                 $toCreate->map(fn (Transaction $d) => [
                     $d->id,
                     'TX' . str_pad($d->id, 6, '0', STR_PAD_LEFT),
@@ -77,7 +77,7 @@ class GenerateRetroactiveTaxExpenses extends Command
                 'transaction_number' => $txCode,
                 'transaction_date'   => $disbursement->transaction_date,
                 'supplier_id'        => $dgii->id,
-                'notes'              => "Impuesto por transacción — Automático ({$taxPct}%) por desembolso {$txCode}",
+                'notes'              => 'Impuesto por transacción — Automático (' . Parameter::formatPct($taxPct) . "%) por desembolso {$txCode}",
                 'registered_by'      => $disbursement->registered_by,
                 'confirmed_by'       => $disbursement->registered_by,
                 'confirmed_at'       => now(),

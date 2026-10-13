@@ -13,9 +13,12 @@ use RuntimeException;
  *
  * El caso: un company_user registra el cobro con un monto que no es el del pago
  * real (TX000440 se registró por el saldo completo de FN000130, 151,536.19,
- * cuando el cheque era de 131,770.60). La UI solo permite confirmar un cobro
- * pendiente, no editarlo ni rechazarlo, y confirmarlo tal cual saldaría el
+ * cuando el cheque era de 131,770.60), y confirmarlo tal cual saldaría el
  * financiamiento con dinero que nadie pagó.
+ *
+ * Desde v1.15.0 la UI ofrece lo mismo con la acción "Corregir" del cobro
+ * pendiente, que además permite cambiar el método de pago. Este comando queda
+ * para cuando haga falta el dry-run o la verificación de ledgers alrededor.
  *
  * Por qué es seguro: un cobro pendiente todavía no tocó nada. Ni los ledgers, ni
  * `collected_amount`, ni el libro de saldos de compañías se mueven hasta
@@ -74,22 +77,17 @@ class CorrectPendingCollectionAmount extends OperationCommand
         }
 
         $reason = (string) ($this->option('reason') ?: 'El monto registrado no coincidía con el pago recibido.');
-        $note   = "Monto corregido de {$this->money($oldAmount)} a {$this->money($newAmount)}: {$reason}"
-            . ' — Autorizado por ' . $this->actor()->email . '.';
 
-        DB::transaction(function () use ($transaction, $newAmount, $note) {
-            // Releer con bloqueo: si alguien confirmó el cobro mientras se mostraba
-            // el plan, el monto viejo ya se aplicó y esto dejaría de ser inocuo.
-            $locked = Transaction::whereKey($transaction->id)->lockForUpdate()->first();
-
-            if ($locked->status !== 'pending') {
-                throw new RuntimeException("{$locked->code} dejó de estar pendiente. No se modificó nada.");
+        DB::transaction(function () use ($transaction, $newAmount, $reason) {
+            // La escritura es la misma que hace la UI: una sola regla para corregir
+            // un cobro pendiente, se llegue por donde se llegue.
+            try {
+                (new TransactionService())->correctPendingCollection($transaction, ['amount' => $newAmount], $reason);
+            } catch (RuntimeException $e) {
+                throw $e;
+            } catch (\Exception $e) {
+                throw new RuntimeException($e->getMessage());
             }
-
-            $locked->update([
-                'amount' => $newAmount,
-                'notes'  => trim(trim((string) $locked->notes) . ' | ' . $note, ' |'),
-            ]);
 
             $this->assertLedgersBalanced();
         });
