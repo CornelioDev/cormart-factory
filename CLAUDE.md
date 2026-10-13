@@ -264,6 +264,8 @@ Correcciones que la UI **no expone a propósito** porque tocan el ledger: trasla
 | Comando | Qué hace |
 |---|---|
 | `ops:reassign-duplicate-disbursement` | Traslada el desembolso de un financiamiento duplicado a otro `solicited` de la misma compañía, sin mover efectivo |
+| `ops:correct-pending-collection-amount` | Corrige el monto de un cobro todavía `pending` (la UI solo permite confirmarlo). No toca ledgers: el monto corregido se aplica al confirmar |
+| `ops:reclassify-repayment-as-collection` | Convierte una devolución de compañía (`company_repayment`) en cobro de un financiamiento cuando el pago lo hizo el deudor. Reabre el saldo contra la compañía, sin mover ledgers |
 
 ### Convención para comandos nuevos
 
